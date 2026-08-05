@@ -1,0 +1,38 @@
+
+Examples:
+	
+	geedar -m:1 -i:"c:\test\input file.csv" -t:2  -k -c:P314C15L3R1
+		This command line runs geedar in operation mode 1, processing
+		satellite images that match the dates and sites in the file "input 
+		file.csv" in the folder "c:\test", adopting a tolerance window of 2 
+		days before and after the dates specified in the CSV file, defining 
+		the areas of interest from KML files named as the sites in the CSV 
+		and by applying a processing pipeline corresponding the product 
+		#314, cloud algorithm #15, local algorithm #3 and reducer #1.
+
+	geedar -m:1 -i:"c:\test\input file.csv" -t:1 -k 
+	-c:[P314C15L3R1,P201C8L3R1]
+		Same as the previous one, but now the time window is of one day and 
+		two demand codes were provided, corresponding to two different 
+		pipelines. The results of both will be combined in the output file, 
+		which was not named in the command line and will, therefore, be 
+		placed in the same folder of the input file with an automatically 
+		generated name.
+
+	geedar "c:\test\input file.csv" -t:1  -k -c:[P314C15L3R1,P201C8L3R1]
+		Same as the previous one, but now both the '-m' and the '-i' were 
+		omitted, which will make GEEDaR consider the first string as the 
+		input file and use the file contents to automatically determine the 
+		operation mode (if it corresponds to the mode 1 required columns, 
+		that will be the operation mode).
+
+	geedar "c:\test\input file.csv" -t:1 -r:250 -c:[P314C15L3R1,P201C8L3R1]
+		Now the areas of interest will be determined as circles with radius 
+		of 250 m around the geographic coordinates (decimal values) in the 
+		columns "lat" and "long" of the input file.
+
+	geedar "c:\test\input file.csv" -r:250 -c:[P314C15L3R1,P201C8L3R1] 
+	-o:"c:\test\outuput\my_results.csv"
+		Now the time window was not informed (it will be considered only 
+		the exact dates in the input file) and the output file 	path was 
+		manually defined.

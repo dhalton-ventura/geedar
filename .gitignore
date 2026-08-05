@@ -1,0 +1,7 @@
+__pycache__/
+_test/
+env/
+/msg_log.txt
+/*.json
+/*.pkl
+/*.bak
