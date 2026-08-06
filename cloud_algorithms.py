@@ -855,7 +855,7 @@ def simple_water_selection(product, virtual_station, image_collection,
     image_collection = _water_product_qual_flag(image_collection)
     
     return ee.ImageCollection(image_collection)
-        
+    
 
 #%% Build a catalog of algorithms
 
@@ -1025,3 +1025,4 @@ _algo_list = [
 
 cloud_algo_catalog = {a["algo_code"]: CloudAlgorithm(a) 
     for a in _algo_list}
+
