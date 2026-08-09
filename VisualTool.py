@@ -181,6 +181,7 @@ with st.sidebar:
             st.session_state.stations = import_info["stations"]
             st.rerun()
     else:
+        # The user removed the imported file, so reset the session.
         if st.session_state.import_info:
             reset_session()
             st.rerun()
@@ -242,23 +243,33 @@ with st.sidebar:
     with date_col1:
         if st.button("|<"): 
             if st.session_state.product_sel:
+                nav_dates = st.session_state.nav_dates
+                if len(nav_dates) > 0:
+                    st.session_state.target_date = nav_dates[0]
+    with date_col2:
+        if st.button("<"): 
+            if st.session_state.vt_mode == 0:
+                st.session_state.target_date -= timedelta(days=1)
+            else:
                 prev_dates = [d for d in st.session_state.nav_dates 
                     if d < st.session_state.target_date]
                 if len(prev_dates) > 0:
                     st.session_state.target_date = prev_dates[-1]
-    with date_col2:
-        if st.button("<", disabled=bool(st.session_state.vt_mode)): 
-            st.session_state.target_date -= timedelta(days=1)
     with date_col3:
-        if st.button(">", disabled=bool(st.session_state.vt_mode)): 
-            st.session_state.target_date += timedelta(days=1)
-    with date_col4:
-        if st.button(">|"):
-            if st.session_state.product_sel:
+        if st.button(">"): 
+            if st.session_state.vt_mode == 0:
+                st.session_state.target_date += timedelta(days=1)
+            else:
                 next_dates = [d for d in st.session_state.nav_dates 
                     if d > st.session_state.target_date]
                 if len(next_dates) > 0:
-                    st.session_state.target_date = next_dates[0]
+                    st.session_state.target_date = next_dates[0]                
+    with date_col4:
+        if st.button(">|"):
+            if st.session_state.product_sel:
+                nav_dates = st.session_state.nav_dates
+                if len(nav_dates) > 0:
+                    st.session_state.target_date = nav_dates[-1]
     
     # Date selector.
     date_sel = st.date_input("Date", st.session_state.target_date, 
