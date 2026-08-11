@@ -64,10 +64,11 @@ from local_algorithms import local_algo_catalog
 from variables import variable_catalog
 from instruments import instrument_catalog
 from db_config import db_config
-from geedar_classes import VirtualStation
+from geedar_classes import VirtualStation, GeedarDB
 from visual_tool_functions import (add_ee_layer, 
     reset_session, switch_to_mode,
-    get_basic_data_from_csv,
+    get_basic_data_from_csv, get_basic_data_from_db,
+    update_import_info_for_station_from_db,
     get_station_list, extract_station_code,
     get_aoi, get_centroid, 
     set_available_dates, set_nav_dates, 
@@ -170,10 +171,14 @@ with st.sidebar:
     elif source == "database":   
         st.session_state.uploaded_csv = None
         if st.button("Import from DB", use_container_width=True):
-            # GeedarDB 
-            st.session_state.display_msg = {
-                "text": "Database connection triggered!",
-                "icon": "🗄️"}
+            with st.spinner("Connecting to database..."):
+                try:
+                    geedar_db = GeedarDB(conn_dict=db_config["conn_dict"], db_names=db_config["db_names"])
+                    geedar_db.connect()
+                    st.session_state.geedar_db = geedar_db
+                    import_info = get_basic_data_from_db(geedar_db)
+                except Exception as e:
+                    st.error(f"Database connection failed: {e}")
     if import_info:
         if import_info["reading_time"] != st.session_state.last_reading:
             st.session_state.last_reading = import_info["reading_time"]
@@ -219,6 +224,12 @@ with st.sidebar:
             new_station = True
     if new_station:
         station_code = code_from_sel
+        
+        if st.session_state.geedar_db and st.session_state.import_info:
+            with st.spinner(f"Loading data for station {station_code}..."):
+                st.session_state.import_info = update_import_info_for_station_from_db(
+                    st.session_state.geedar_db, station_code, st.session_state.import_info)
+                    
         st.session_state.active_station = st.session_state.stations[
             station_code]
         st.session_state.aoi = get_aoi(station_code)

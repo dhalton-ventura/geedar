@@ -6627,13 +6627,16 @@ class GeedarApp:
         
         # Load input data.
         
-        if len(input_file) >= 5:           
-            # If input is a kml file...
-            # Build the user dataframe from kml file(s). The station identif. 
-            # is defined from the file name. Internal names of geometries are 
-            # ignored.
+        # If len(input_file) >= 5: the provided string may be a filename with 
+        # typical extension (csv, kml, kmz).
+        if len(input_file) >= 5:
+            
+            # If it is a kml file...
+            # Build the user dataframe from kml file(s). The station id.
+            # is defined from the file name. Internal names of geometries 
+            # are ignored.
+            # Enforce pertaining options.
             if input_file[-4:].lower() in [".kml", ".kmz"]:
-                # KML file: enforce pertaining options.
                 if not op_mode in [0, 2]:
                     print("(!) Since your input file(s) is .kml, the "
                         + "operation will be enforced to mode 2.")
@@ -6668,8 +6671,8 @@ class GeedarApp:
                     user_df.loc[i] = [station_code, station_name, 
                         "auto", "auto"]
             
-            # Input data is in a shapefile. The attribute table must contain 
-            # the same miminum data expected for a CSV input file.
+            # Input data is in a shapefile. The attribute table must 
+            # contain the same miminum data expected for a CSV input file.
             elif input_file[-4:] == ".shp":
                 if aoi_mode == 1:
                     print("(!) You provided a shapefile, but added the kml "
@@ -6746,7 +6749,7 @@ class GeedarApp:
             raise ValueError("A column for 'aoi_mode' should be in the "
                 +"input data.")
         elif aoi_col:
-            if aoi_mode == 1:
+            if aoi_mode == 1: # Shouldn't it be aoi_mode >= 0 ?
                 print("(!) Since your input data contains a column "
                     + "'aoi_mode', the corresponding command line parameter "
                     + "will be ignored.")
@@ -6760,16 +6763,18 @@ class GeedarApp:
         
         # Check AoI radius.
         radius_cols = demand_cols_dict["aoi_radius"]
-        if any(c in user_cols for c in radius_cols) and radius >= 0:
-            print("(!) Since your input data contains a column for the "
-                + "'radius', the command line parameter will be "
-                + "ignored.")
-            radius = -1            
-        # Use default radius value?
-        elif radius == -1 and aoi_mode <= 0:
-            radius = _AOI_DEFAULT_RADIUS
-            print("No radius value informed. Using the default value: "
-                + str(radius) + ".")
+        if any(c in user_cols for c in radius_cols):
+            if radius >= 0:
+                print("(!) Since your input data contains a column for the "
+                    + "'radius', the command line parameter will be "
+                    + "ignored.")
+                radius = -1
+        else:
+            # Use default radius value?
+            if radius == -1 and aoi_mode <= 0:
+                radius = _AOI_DEFAULT_RADIUS
+                print("No radius value informed. Using the default value: "
+                    + str(radius) + ".")
 
         # Check demand codes.        
         if demand_codes_strlist == ["auto"]:

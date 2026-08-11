@@ -27,7 +27,7 @@ import ee
 
 from datetime import datetime, timedelta, timezone
 from geedar_classes import (VirtualStation, Demand, GeedarApp, 
-    cast_numeric_list)
+    cast_numeric_list, extract_from_kml)
 from cloud_algorithms import cloud_algo_catalog
 from reducers import reducer_catalog
 from local_algorithms import local_algo_catalog
@@ -434,6 +434,173 @@ def get_basic_data_from_csv(csv):
         "icon": "📄"}    
     return import_dict
 
+# Reads data from GeedarDB and extracts info on stations.
+@st.cache_data(show_spinner=False)
+def get_basic_data_from_db(_geedar_db):
+    import_dict = {
+        "success": False,
+        "error_msgs": [],
+        "reading_time": -1,
+        "data_cols": [],
+        "coord_cols": [],
+        "stations": dict(),
+        "available_dates": dict(),
+        "demands": dict()
+    }
+    
+    try:
+        df_station = _geedar_db.get_table("station")
+        df_demand = _geedar_db.get_demands()
+    except Exception as e:
+        import_dict["error_msgs"].append(f"Database read error: {e}")
+        return import_dict
+    
+    if len(df_station) == 0:
+        import_dict["error_msgs"].append("No stations found in database.")
+        return import_dict
+
+    db_names = _geedar_db.db_names
+    use_real = _geedar_db.use_real_col_names
+    
+    col_st_code = db_names["station"]["code"] if use_real else "station.code"
+    col_st_name = db_names["station"]["name"] if use_real else "station.name"
+    col_st_lat = db_names["station"]["lat"] if use_real else "station.lat"
+    col_st_long = db_names["station"]["long"] if use_real else "station.long"
+    col_st_id = db_names["station"]["primary_key"] if use_real else "station.primary_key"
+
+    col_dm_st_id = db_names["demand"]["fkey_station"] if use_real else "demand.fkey_station"
+    col_aoi_mode = db_names["demand"]["aoi_mode"] if use_real else "demand.aoi_mode"
+    col_aoi_radius = db_names["demand"]["aoi_radius"] if use_real else "demand.aoi_radius"
+    col_kml_path = db_names["demand"]["kml_path"] if use_real else "demand.kml_path"
+    
+    for _, st_row in df_station.iterrows():
+        station_id = st_row[col_st_id]
+        station_code = str(st_row[col_st_code])
+        station_name = str(st_row[col_st_name])
+        lat = float(st_row[col_st_lat])
+        long = float(st_row[col_st_long])
+        
+        st_demands = df_demand[df_demand[col_dm_st_id] == station_id]
+        if len(st_demands) == 0:
+            continue
+            
+        first_dm = st_demands.iloc[0]
+        aoi_mode = first_dm[col_aoi_mode]
+        aoi_radius = first_dm[col_aoi_radius]
+        kml_path = first_dm[col_kml_path]
+        
+        geojson = None
+        try:
+            if aoi_mode == 1 and pandas.notna(kml_path):
+                gdict = extract_from_kml(kml_path, what="geojson", aggregate=True)
+                for g in ["MultiPolygon", "MultiLineString", "MultiPoint"]:
+                    if g in gdict:
+                        geojson = gdict[g][0]
+                        break
+            elif aoi_mode == 0:
+                if pandas.isna(aoi_radius) or aoi_radius == 0:
+                    geojson = ee.Geometry.Point([long, lat]).getInfo()
+                else:
+                    geojson = ee.Geometry.Point([long, lat]).buffer(int(aoi_radius)).getInfo()
+            
+            if geojson is None:
+                raise ValueError("Could not determine geometry.")
+            
+            aoi = ee.Geometry(geojson)
+            cur_station = VirtualStation(aoi, station_code, station_name, lat, long)
+            import_dict["stations"][station_code] = cur_station
+            import_dict["available_dates"][station_code] = dict()
+            import_dict["demands"][station_code] = dict()
+        except Exception as e:
+            import_dict["error_msgs"].append(f"Failed to create VirtualStation for {station_code}: {e}")
+            continue
+            
+    import_dict["success"] = True
+    import_dict["reading_time"] = datetime.now().microsecond
+    st.session_state.display_msg = {"text": "Database stations loaded!", "icon": "🗄️"}    
+    return import_dict
+
+@st.cache_data(show_spinner=False)
+def update_import_info_for_station_from_db(_geedar_db, station_code, import_info):
+    if not station_code or not import_info:
+        return import_info
+        
+    if len(import_info["demands"].get(station_code, {})) > 0:
+        return import_info
+
+    try:
+        df_demand = _geedar_db.get_demands()
+        df_station = _geedar_db.get_table("station")
+    except Exception as e:
+        print(f"Error fetching demands: {e}")
+        return import_info
+
+    db_names = _geedar_db.db_names
+    use_real = _geedar_db.use_real_col_names
+    
+    col_st_code = db_names["station"]["code"] if use_real else "station.code"
+    col_st_id = db_names["station"]["primary_key"] if use_real else "station.primary_key"
+    
+    st_rows = df_station[df_station[col_st_code] == station_code]
+    if len(st_rows) == 0:
+        return import_info
+    station_id = st_rows.iloc[0][col_st_id]
+    
+    col_dm_st_id = db_names["demand"]["fkey_station"] if use_real else "demand.fkey_station"
+    col_dm_id = db_names["demand"]["primary_key"] if use_real else "demand.primary_key"
+    col_prod = db_names["demand"]["fkey_product"] if use_real else "demand.fkey_product"
+    col_cloud = db_names["demand"]["fkey_cloud_algo"] if use_real else "demand.fkey_cloud_algo"
+    col_local = db_names["demand"]["fkey_local_algo"] if use_real else "demand.fkey_local_algo"
+    col_reducer = db_names["demand"]["fkey_reducer"] if use_real else "demand.fkey_reducer"
+    
+    st_demands = df_demand[df_demand[col_dm_st_id] == station_id]
+    
+    if len(st_demands) == 0:
+        return import_info
+        
+    demand_ids = st_demands[col_dm_id].tolist()
+    
+    try:
+        df_data = _geedar_db.get_data(demand_id=demand_ids)
+    except Exception as e:
+        print(f"Error fetching data for station {station_code}: {e}")
+        return import_info
+
+    col_date = db_names["acquisition"]["date"] if use_real else "acquisition.date"
+    col_var_name = db_names["variable"]["name"] if use_real else "variable.name"
+    col_dm_id_data = db_names["acquisition"]["fkey_demand"] if use_real else "acquisition.fkey_demand"
+    
+    for _, dm_row in st_demands.iterrows():
+        d_id = dm_row[col_dm_id]
+        p = dm_row[col_prod]
+        c = dm_row[col_cloud]
+        l = dm_row[col_local]
+        r = dm_row[col_reducer]
+        
+        demand_code_str = f"P{p}C{c}L{l}R{r}"
+        
+        dm_data = df_data[df_data[col_dm_id_data] == d_id]
+        if len(dm_data) == 0:
+            continue
+            
+        date_list = list(pandas.to_datetime(dm_data[col_date]).dt.date.unique())
+        
+        if p not in import_info["available_dates"][station_code]:
+            import_info["available_dates"][station_code][p] = []
+        
+        import_info["available_dates"][station_code][p].extend(date_list)
+        import_info["available_dates"][station_code][p] = list(set(import_info["available_dates"][station_code][p]))
+        
+        import_info["demands"][station_code][demand_code_str] = {
+            "P": p, "C": c, "L": l, "R": r
+        }
+    
+    if len(import_info["data_cols"]) == 0 and len(df_data) > 0:
+        vars_present = df_data[col_var_name].unique().tolist()
+        import_info["data_cols"] = vars_present
+
+    return import_info
+
 # Retrieves GEEDaR results from a csv or database for the current station, 
 # product, cloud algo and local algo. All available stats will be included.
 @st.cache_data(show_spinner=False)
@@ -450,12 +617,94 @@ def get_result_data(station_sel, product_sel, cloud_algo_sel,
         result_dict = get_result_data_from_csv(station_code, product_code, 
             cloud_algo_code, local_algo_code)
     elif vt_mode > 0 and st.session_state.geedar_db:
-        pass
+        result_dict = get_result_data_from_db(st.session_state.geedar_db, station_code, product_code, 
+            cloud_algo_code, local_algo_code)
     elif vt_mode == 0:
         pass
     else:
         print("(!) Something is missing. Could not retrieve result data.")
         return
+    return result_dict
+
+# Auxilliary function for 'get_result_data' to read from db.
+def get_result_data_from_db(_geedar_db, station_code, product_code, cloud_algo_code, local_algo_code):
+    if not st.session_state.import_info:
+        return
+        
+    db_names = _geedar_db.db_names
+    use_real = _geedar_db.use_real_col_names
+    
+    df_station = _geedar_db.get_table("station")
+    col_st_code = db_names["station"]["code"] if use_real else "station.code"
+    col_st_id = db_names["station"]["primary_key"] if use_real else "station.primary_key"
+    st_rows = df_station[df_station[col_st_code] == station_code]
+    if len(st_rows) == 0:
+        return
+    station_id = st_rows.iloc[0][col_st_id]
+    
+    df_demand = _geedar_db.get_demands()
+    col_dm_st_id = db_names["demand"]["fkey_station"] if use_real else "demand.fkey_station"
+    col_dm_id = db_names["demand"]["primary_key"] if use_real else "demand.primary_key"
+    col_prod = db_names["demand"]["fkey_product"] if use_real else "demand.fkey_product"
+    col_cloud = db_names["demand"]["fkey_cloud_algo"] if use_real else "demand.fkey_cloud_algo"
+    col_local = db_names["demand"]["fkey_local_algo"] if use_real else "demand.fkey_local_algo"
+    
+    st_demands = df_demand[
+        (df_demand[col_dm_st_id] == station_id) & 
+        (df_demand[col_prod] == int(product_code)) & 
+        (df_demand[col_cloud] == int(cloud_algo_code)) & 
+        (df_demand[col_local] == int(local_algo_code))
+    ]
+    
+    if len(st_demands) == 0:
+        return
+        
+    demand_ids = st_demands[col_dm_id].tolist()
+    
+    df_data = _geedar_db.get_data(demand_id=demand_ids)
+    if len(df_data) == 0:
+        return
+        
+    col_date = db_names["acquisition"]["date"] if use_real else "acquisition.date"
+    col_time = db_names["acquisition"]["time"] if use_real else "acquisition.time"
+    col_var_name = db_names["variable"]["name"] if use_real else "variable.name"
+    col_stat_suffix = db_names["stats"]["suffix"] if use_real else "stats.suffix"
+    col_result_val = db_names["result"]["value"] if use_real else "result.value"
+    
+    var_dict = dict()
+    
+    df_data["img_date"] = pandas.to_datetime(df_data[col_date]).dt.date
+    df_data["img_time"] = df_data[col_time]
+    df_data["stat"] = df_data[col_stat_suffix]
+    
+    sng_rows = []
+    
+    for (d, t, s), group in df_data.groupby(["img_date", "img_time", "stat"]):
+        row = {"img_date": d, "img_time": t, "stat": s}
+        for _, r in group.iterrows():
+            var_name = r[col_var_name]
+            val = r[col_result_val]
+            
+            if pandas.notna(val):
+                row[var_name] = float(val)
+                
+                if var_name not in var_dict:
+                    var_dict[var_name] = dict()
+                if s not in var_dict[var_name]:
+                    var_dict[var_name][s] = {"min": float(val), "max": float(val)}
+                else:
+                    var_dict[var_name][s]["min"] = min(float(val), var_dict[var_name][s]["min"])
+                    var_dict[var_name][s]["max"] = max(float(val), var_dict[var_name][s]["max"])
+        sng_rows.append(row)
+        
+    df_sng = pandas.DataFrame(sng_rows)
+    df_lst = pandas.DataFrame(columns=["img_date", "img_time", "stat", "latitude_list", "longitude_list"])
+    
+    result_dict = {
+        "var_dict": var_dict,
+        "time_series_df": df_sng,
+        "pixels_df": df_lst
+    }
     return result_dict
 
 # Auxilliary function for 'get_result_data'.
