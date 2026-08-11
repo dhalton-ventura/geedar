@@ -5137,7 +5137,7 @@ class GeedarDB:
                 db_names = self._db_names
                 demand_id_col = db_names["demand"]["primary_key"]
                 start_date_col = db_names["demand"]["start_date"]
-                end_date_col = db_names["demand"]["start_date"]
+                end_date_col = db_names["demand"]["end_date"]
             else:
                 demand_id_col = "demand.primary_key"
                 start_date_col = "demand.start_date"
@@ -5147,7 +5147,8 @@ class GeedarDB:
                 demand_id = df.loc[i, demand_id_col]
                 last_date = self.get_last_date(demand_id)
                 if last_date is not None:
-                    start_date = last_date + timedelta(days=1)
+                    start_date = pandas.to_datetime(last_date) + timedelta(
+                        days=1)
                     df.loc[i, start_date_col] = start_date.strftime("%Y-%m-%d")
                     # Check end_date.
                     end_date = df.loc[i, end_date_col]
@@ -5456,25 +5457,15 @@ class GeedarDB:
         
         schema = subdict["_schema"]
         table = subdict["_table_name"]
-        sqlstr = f"""
-            SELECT COUNT(*)
-            FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}';
-        """
-        querydf = pandas.read_sql_query(sqlstr, conn)
-        if querydf.iloc[0,0] == 0:
+        inspector = inspect(conn)
+        if not inspector.has_table(table, schema=schema):
              raise ValueError("The table " + table + " was not found in "
                  + "the target database.")
-        
-        sqlstr = f"""
-            SELECT COLUMN_NAME
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_NAME = '{table}' AND DATA_TYPE <> 'geometry';
-        """
-        table_cols = pandas.read_sql_query(sqlstr, conn)
+        cols = inspector.get_columns(table, schema=schema)
+        table_cols = [col["name"] for col in cols
+            if str(col["type"]).lower() != "geometry"]
         unmatched_cols = [c for c in df_cols 
-            if c.lower() not in 
-            [col.lower() for col in list(table_cols["COLUMN_NAME"])]]                
+            if c.lower() not in [col.lower() for col in table_cols]]
         if len(unmatched_cols) > 0:
             raise ValueError("One or more columns in the input data frame "
                 + "were not found in the table ''" + table_name + "': " 
@@ -5482,8 +5473,6 @@ class GeedarDB:
 
         # Remove columns with identity restriction (autoincrement).
         valid_cols = df_cols
-        cols = inspect(conn).get_columns(db_names[table_key]["_table_name"], 
-            schema=db_names[table_key]["_schema"])    
         has_identity = False
         for col in cols:
             if (col.get('autoincrement') is True 
@@ -7645,8 +7634,7 @@ class GeedarApp:
             ind = [i for i in db_vars.index 
                 if db_vars.loc[i, "variable.name"] == var_name]
             if len(ind) == 0:
-                df = pandas.DataFrame({"primary_key": [var_code], 
-                    "name": [var_name],
+                df = pandas.DataFrame({"name": [var_name],
                     "unit": [var_unit],
                     "description": [var_description],
                     "label": [var_label]})
@@ -7735,7 +7723,6 @@ class GeedarApp:
         if hasattr(self, "_proc_dict"):
             return
         demand_df = self._demand_df
-        primer_df = self._primer_df.copy()
         product_catalog = self._args["product_catalog"]
         cloud_algo_catalog = self._args["cloud_algo_catalog"]
         local_algo_catalog = self._args["local_algo_catalog"]
@@ -7753,6 +7740,7 @@ class GeedarApp:
             demand_df = pandas.DataFrame()
         if len(demand_df) == 0:
             raise ValueError("No valid data demand to be processed.")
+        primer_df = self._primer_df.copy()
 
         # Build the demand dictionary.
         
