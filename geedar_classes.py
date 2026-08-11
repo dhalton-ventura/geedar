@@ -5883,6 +5883,15 @@ class UserOptions:
             "default_value": "auto",
             "auto_assign_command": False
         },
+        "f": {
+            "name": "stations",
+            "description": ("In operation mode 3, limits execution to "
+                + "demands associated with the informed station codes."),
+            "is_a_list": True,
+            "valid_values": [str, int],
+            "default_value": "auto",
+            "auto_assign_command": False
+        },
         "k": {
             "name": "kml",
             "description": "Sets 'kml' as the source of the information for " 
@@ -6006,10 +6015,10 @@ class UserOptions:
         for arg_ind in range(len(args)):
             arg = args[arg_ind]
             # Signed? How?
-            if arg[:len(letter_marker)] == letter_marker:
-                marker_end_pos = len(letter_marker) - 1
-            elif arg[:len(word_marker)] == word_marker:
+            if arg[:len(word_marker)] == word_marker:
                 marker_end_pos = len(word_marker) - 1
+            elif arg[:len(letter_marker)] == letter_marker:
+                marker_end_pos = len(letter_marker) - 1
             # Unsigned.
             else:
                 marker_end_pos = -1
@@ -6722,7 +6731,12 @@ class GeedarApp:
                 user_df = demand_table.rename(
                     columns={v[0]:k for k,v in demand_cols_dict.items() 
                     if len(v) > 0})
-           
+                station_codes = options_dict["stations"]
+                if station_codes != ["auto"]:
+                    station_codes = [str(code) for code in station_codes]
+                    user_df = user_df.loc[user_df["station_code"].astype(
+                        str).isin(station_codes)].copy()
+
             # CSV file.
             elif input_file[-4:] == ".csv":
                 user_df = pandas.read_csv(input_path)
