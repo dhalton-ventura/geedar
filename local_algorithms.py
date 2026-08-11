@@ -55,6 +55,92 @@ def madeira_2013(df, options):
     return_df = df.eval("SSS = 1020*(NIR/red)**2.94")
     return return_df
 
+
+ARTICLE_COEF = 759.12
+ARTICLE_EXP = 1.9189
+RATIO_MIN = 0.03
+RATIO_MAX = 1.20
+TRANSITION_LOW = 80.0
+TRANSITION_HIGH = 100.0
+ALTO_RED_SLOPE = 0.032800385674
+
+
+def _article_branch(red, nir):
+    red = pd.to_numeric(red, errors="coerce")
+    nir = pd.to_numeric(nir, errors="coerce")
+    ratio = nir / red.replace(0, np.nan)
+    valid = ratio.between(RATIO_MIN, RATIO_MAX)
+    return ARTICLE_COEF * np.power(ratio.where(valid), ARTICLE_EXP)
+
+
+def _smoothstep(driver):
+    driver = pd.to_numeric(driver, errors="coerce")
+    t = ((driver - TRANSITION_LOW) /
+         (TRANSITION_HIGH - TRANSITION_LOW)).clip(lower=0.0, upper=1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _apply_quality_filter(df):
+    if "qual_flag" in df.columns:
+        return pd.to_numeric(df["qual_flag"], errors="coerce").isin([1, 2])
+    return pd.Series(True, index=df.index)
+
+
+def sss_alto_solimoes_red_artigo(df, options):
+    out = df.copy()
+    red = pd.to_numeric(out["red"], errors="coerce")
+    red = red.where(red > 0.0)
+    red_branch = ALTO_RED_SLOPE * red
+    article = _article_branch(red, out["NIR"])
+    weight = _smoothstep(article)
+    prediction = red_branch.copy()
+    both = red_branch.notna() & article.notna()
+    prediction.loc[both] = (
+        (1.0 - weight.loc[both]) * red_branch.loc[both]
+        + weight.loc[both] * article.loc[both]
+    )
+    out["SSS"] = prediction
+    out.loc[~_apply_quality_filter(out), "SSS"] = np.nan
+    return out
+
+
+def sss_medio_solimoes_red_artigo(df, options):
+    out = df.copy()
+    red = pd.to_numeric(out["red"], errors="coerce")
+    red = red.where(red > 0.0)
+    red_branch = 0.09918086861006252 * red
+    article = _article_branch(red, out["NIR"])
+    weight = _smoothstep(red_branch)
+    prediction = red_branch.copy()
+    both = red_branch.notna() & article.notna() & weight.gt(0.0)
+    prediction.loc[both] = (
+        (1.0 - weight.loc[both]) * red_branch.loc[both]
+        + weight.loc[both] * article.loc[both]
+    )
+    out["SSS"] = prediction
+    out.loc[~_apply_quality_filter(out), "SSS"] = np.nan
+    return out
+
+
+def sss_baixo_amazonas_red_nir(df, options):
+    out = df.copy()
+    red = pd.to_numeric(out["red"], errors="coerce")
+    red = red.where(red > 0.0)
+    nir = pd.to_numeric(out["NIR"], errors="coerce")
+    nir = nir.where(nir > 0.0)
+    red_branch = 0.06920309102554381 * red
+    nir_branch = 0.16802259391468988 * nir
+    weight = _smoothstep(red_branch)
+    prediction = red_branch.copy()
+    both = red_branch.notna() & nir_branch.notna() & weight.gt(0.0)
+    prediction.loc[both] = (
+        (1.0 - weight.loc[both]) * red_branch.loc[both]
+        + weight.loc[both] * nir_branch.loc[both]
+    )
+    out["SSS"] = prediction
+    out.loc[~_apply_quality_filter(out), "SSS"] = np.nan
+    return out
+
 def old_hidrosat_chla(df, options):
     return_df = df.eval("Chla = 4.3957 + 0.213*(red - (red**2)/green) + 0.0004*(red - (red**2)/green)**2")
     return return_df
@@ -250,6 +336,36 @@ _algo_list = [
         "required_bands": ["blue", "green", "red", "NIR", "wl2000"],
         "applicable_suffixes": ["median","mean"],
         "function": madeira_2023,
+        "options": None
+     },
+     {
+        "algo_code": 20,
+        "name": "SSS Alto Solimoes - RED/artigo",
+        "description": "Regional SSS model with RED and NIR/RED branches.",
+        "ref": "GEEDaR/HidroSat internal calibration, 2026.",
+        "required_bands": ["red", "NIR", "qual_flag"],
+        "applicable_suffixes": ["median"],
+        "function": sss_alto_solimoes_red_artigo,
+        "options": None
+     },
+     {
+        "algo_code": 21,
+        "name": "SSS Medio Solimoes - RED/artigo",
+        "description": "Regional SSS model with RED and NIR/RED branches.",
+        "ref": "GEEDaR/HidroSat internal calibration, 2026.",
+        "required_bands": ["red", "NIR", "qual_flag"],
+        "applicable_suffixes": ["median"],
+        "function": sss_medio_solimoes_red_artigo,
+        "options": None
+     },
+     {
+        "algo_code": 22,
+        "name": "SSS Baixo Amazonas - RED/NIR",
+        "description": "Regional SSS model with linear RED and NIR branches.",
+        "ref": "GEEDaR/HidroSat internal calibration, 2026.",
+        "required_bands": ["red", "NIR", "qual_flag"],
+        "applicable_suffixes": ["median"],
+        "function": sss_baixo_amazonas_red_nir,
         "options": None
      }
 ]
