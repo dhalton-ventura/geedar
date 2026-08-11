@@ -5401,8 +5401,10 @@ class GeedarDB:
         table_key = self._check_table_key(table_key)
         
         db_names = self._db_names
-        table_name = (db_names[table_key]["_schema"] + "." 
-            + db_names[table_key]["_table_name"])
+        schema = db_names[table_key]["_schema"] or None
+        table_name = db_names[table_key]["_table_name"]
+        if schema:
+            table_name = schema + "." + table_name
         subdict = db_names[table_key]
         key_list = [*subdict.keys()]
         
@@ -5441,36 +5443,25 @@ class GeedarDB:
                 
         # Check if table and columns in 'db_names' exist in the database.
         
-        schema = subdict["_schema"]
+        schema = subdict["_schema"] or None
         table = subdict["_table_name"]
-        sqlstr = f"""
-            SELECT COUNT(*)
-            FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}';
-        """
-        querydf = pandas.read_sql_query(sqlstr, conn)
-        if querydf.iloc[0,0] == 0:
+        inspector = inspect(conn)
+        
+        if not inspector.has_table(table, schema=schema):
              raise ValueError("The table " + table + " was not found in "
                  + "the target database.")
         
-        sqlstr = f"""
-            SELECT COLUMN_NAME
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_NAME = '{table}' AND DATA_TYPE <> 'geometry';
-        """
-        table_cols = pandas.read_sql_query(sqlstr, conn)
+        cols = inspector.get_columns(table, schema=schema)
+        table_col_names = [c["name"] for c in cols]
         unmatched_cols = [c for c in df_cols 
-            if c.lower() not in 
-            [col.lower() for col in list(table_cols["COLUMN_NAME"])]]                
+            if c.lower() not in [col.lower() for col in table_col_names]]                
         if len(unmatched_cols) > 0:
             raise ValueError("One or more columns in the input data frame "
-                + "were not found in the table ''" + table_name + "': " 
+                + "were not found in the table '" + table_name + "': " 
                 + str(unmatched_cols) + ".")
 
         # Remove columns with identity restriction (autoincrement).
         valid_cols = df_cols
-        cols = inspect(conn).get_columns(db_names[table_key]["_table_name"], 
-            schema=db_names[table_key]["_schema"] or None)
         has_identity = False
         for col in cols:
             if (col.get('autoincrement') is True 
