@@ -6804,8 +6804,11 @@ class GeedarApp:
             self._validated_user_df = None
             return
         if len(user_df) == 0:
-            raise ValueError("The input file must have at least a header row "
-                + "and one data row.")
+            if op_mode >= 3:
+                sys.exit("No demand records in the database yet.")
+            else:
+                print("No row to process in the input file.")
+                raise ValueError("Missing input data.")
         input_dir = self._input_dir
         aoi_mode = self._aoi_mode
         if aoi_mode is None:
