@@ -8,7 +8,7 @@ __author__ = "Dhalton Ventura"
 __copyright__ = "Copyright 2026 HidroSat Project"
 __credits__ = ["Dhalton Ventura"]
 __license__ = "MIT"
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 __maintainer__ = "Dhalton Ventura"
 __email__ = "dhalton.ventura@ana.gov.br"
 __status__ = "Beta"
@@ -711,4 +711,3 @@ def create_raster_overlay(result_dict, var_sel, min_val, max_val):
     
     return {"raster_layer": raster_layer, "color_scale": color_scale}
 
-    

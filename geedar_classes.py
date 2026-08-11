@@ -16,7 +16,7 @@ __author__ = "Dhalton Ventura"
 __copyright__ = "Copyright 2026 HidroSat Project"
 __credits__ = ["Dhalton Ventura"]
 __license__ = "MIT"
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 __maintainer__ = "Dhalton Ventura"
 __email__ = "dhalton.ventura@ana.gov.br"
 __status__ = "Beta"
@@ -294,7 +294,7 @@ def autocast_str(strg, decimal_point=".",
             return ""
         elif len(strg) > 2:
             strg = strg[1:-1]
-            return 
+            return strg
     # The last option: return the string "as-is".
     return(strg)
 
@@ -449,8 +449,12 @@ def val_to_sql(val):
 # Converts a real list to the equivalent string in SQL.
 # Ex: [4, 5, "f", 7.6] -> "(4, 5, 'f', 7.6)"
 def list_to_sql(real_list):
+    if real_list is None:
+        return "NULL"
     if not isinstance(real_list, list):
         raise TypeError("'real_list' must be a list.")
+    if len(real_list) == 0:
+        return "()"
     
     sql_list = "("
     for item in real_list:
@@ -578,6 +582,7 @@ def restore_df_lists(df):
     
     orig_df = pandas.DataFrame(rest_dict)
     orig_df.index = list_lens.index
+    orig_df.attrs = df.attrs
     return orig_df
 
 # Calculates the median or mean of a numeric list. Returns None (default) 
@@ -1307,7 +1312,7 @@ class Product:
         if type(date_list) is not list:
             raise TypeError("'date_list' should be a list.")
         for i in range(len(date_list)):
-            if type(date_list[i]) is datetime.date:
+            if isinstance(date_list[i], date):
                 date_list[i] = date_list[i].strftime("%Y-%m-%d")
             elif type(date_list[i]) is str:
                 try:
@@ -1822,9 +1827,8 @@ class CloudAlgorithm:
                 image_collection = self._add_coord_bands(image_collection, 
                     product.scale_ref_band)
             return image_collection
-        except Exception as e:
-            print(e)
-            return
+        except Exception:
+            raise
 
 
 #%% LocalAlgorithm class
@@ -3347,6 +3351,7 @@ class Demand:
         cur_group_size = len(date_inds) #group_size
         while cur_date_index < n_dates:
             retrieved_dict = None
+            last_error = None
             tile_scale = 2
             n_timeouts = 0
             n_attempt = 1
@@ -3382,10 +3387,12 @@ class Demand:
                     relax_demand = False
                     retrieved_dict = func_timeout(360, retrieve, 
                         args=(image_collection,))
-                except FunctionTimedOut:
+                except FunctionTimedOut as e:
+                    last_error = e
                     print("No response from the server.")
                     n_timeouts += 1
                 except ee.ee_exception.EEException as e:
+                    last_error = e
                     print(f"EEException caught: {e}")
                     if (str(e)[:40] == 
                             "Output of image computation is too large"):
@@ -3394,6 +3401,7 @@ class Demand:
                         n_timeouts += 1
                         relax_demand = True
                 except Exception as e:
+                    last_error = e
                     print(f"A general exception was caught: {e}")
                 else:
                     print("Done.")
@@ -3415,6 +3423,11 @@ class Demand:
             if n_timeouts >= 2 and cur_group_size > 1:
                 print("Now trying to process images one by one...")
                 cur_group_size = 1
+                continue
+            elif not isinstance(retrieved_dict, dict):
+                raise RuntimeError("Data retrieval failed after all retry "
+                    + "attempts for date(s) " + str(short_date_list) + ".") \
+                    from last_error
             else:
                 cur_date_index += cur_group_size
                 
@@ -6700,7 +6713,8 @@ class GeedarApp:
                         + "the parameter 'db_config' must be provided when "
                         + "initializing GeedarApp.")                
                 geedar_db = GeedarDB(conn_dict=db_config["conn_dict"], 
-                    db_names=db_config["db_names"])
+                    db_names=db_config["db_names"],
+                    db_values=db_config["db_values"])
                 
                 # Get demand data.
                 demand_table = geedar_db.get_demands(update_start_date=True)
@@ -7112,10 +7126,10 @@ class GeedarApp:
                 if pandas.notna(new_df.loc[ind, "kml_path"])]:
             if new_df.loc[i, "kml_path"] == "auto":
                 exts = ["kml", "kmz"]
-                names = [new_df.loc[i, "station_code"], 
-                    new_df.loc[i, "station_name"], 
-                    new_df.loc[i, "station_code"] 
-                    + " - " + new_df.loc[i, "station_name"]]
+                names = [str(new_df.loc[i, "station_code"]),
+                    str(new_df.loc[i, "station_name"]),
+                    str(new_df.loc[i, "station_code"])
+                    + " - " + str(new_df.loc[i, "station_name"])]
                 folders = [input_dir, os.path.join(input_dir, "KML"), 
                     os.curdir, os.path.join(os.curdir, "KML")]
                 full_paths = [os.path.join(f, n + "." + e) 
@@ -7128,8 +7142,8 @@ class GeedarApp:
                 if new_df.loc[i, "kml_path"] == "auto":
                     new_df.loc[i, "kml_path"] = pandas.NA
                     print("(!) Could not find external file with the "
-                        + "geometry for the station " 
-                        + str(new_df.loc[i, "station_code"] + " (row #")
+                        + "geometry for the station "
+                        + str(new_df.loc[i, "station_code"]) + " (row #"
                         + str(i) + ").")
                     
         # Check and fill demand codes.
@@ -7163,14 +7177,14 @@ class GeedarApp:
         if len(demand_codes) == 0 and not (
                 user_sep_demand_code_cols or user_demand_code_col):
             # Was a default code provided in instantiation?
-            default_demand_code = self._args["default_demand_code"]
+            default_demand_code = self._default_demand_code
             if default_demand_code is None:
                 raise ValueError("You have not provided a demand code and "
                     + "a default one was not defined when "
                     + "instantiating 'GeedarApp'.")            
             # Are the demand codes valid? Get a list of the validated codes.
             demand_codes = self._validate_demand_codes(default_demand_code)
-            if len(demand_codes):
+            if len(demand_codes) == 0:
                 raise ValueError("You did not provide demand codes in either "
                     + "the command line or in the input file.")
         
@@ -7213,9 +7227,13 @@ class GeedarApp:
             demand_code_strs = list(new_df.loc[pandas.notna(
                 new_df["demand_code"]), "demand_code"].unique())
             self._validate_demand_codes(demand_code_strs)
-            new_df[demand_code_cols] = df["demand_code"].apply(
+            unfolded_codes = new_df["demand_code"].apply(
                 lambda codestr: list(Demand.unfold_demand_code(
-                codestr).values()) if pandas.notna(codestr) else pandas.NA)
+                codestr).values()) if pandas.notna(codestr)
+                else [pandas.NA] * len(demand_code_cols))
+            new_df[demand_code_cols] = pandas.DataFrame(
+                unfolded_codes.tolist(), index=new_df.index,
+                columns=demand_code_cols)
         
         # Invalid rows will be removed.        
         invalid_rows = []
@@ -7250,7 +7268,7 @@ class GeedarApp:
             r = input("Do you want to continue? y/[n]")
             if r.replace(" ", "").lower() != "y":
                 sys.exit(0)
-            new_df.drop(invalid_rows)
+            new_df.drop(invalid_rows, inplace=True)
 
         # Reset the index.
         new_df.reset_index(drop=True, inplace=True)
@@ -7312,7 +7330,7 @@ class GeedarApp:
                 except Exception as e:
                     print(e)
                     raise ValueError("Invalid GeoJSON in row #" + str(i) + ".")
-                new_df.loc[i, "geojson"] = json.dump(geojson)
+                new_df.loc[i, "geojson"] = json.dumps(geojson)
                 new_df.loc[i, "kml_path"] = pandas.NA
                         
             # Extract geometry from external file.
@@ -7980,7 +7998,6 @@ class GeedarApp:
         
         exec_counter = 0
         for demand_ind in [i for i in [*demand_dict] if i > prev_ind]:
-            proc_dict["demand"]["cur_index"] = demand_ind
             demand_id = demand_dict[demand_ind]["demand_id"]
             cur_demand = demand_dict[demand_ind]["demand_obj"]
             site_code = cur_demand._virtual_station.station_code
@@ -7994,6 +8011,7 @@ class GeedarApp:
                 + site_name_str + ", " + demand_code_str)
             cur_result = cur_demand.execute()
             proc_dict["demand"]["dict"][demand_ind]["result_obj"] = cur_result
+            proc_dict["demand"]["cur_index"] = demand_ind
             # Update cache.
             self._update_cache()
             exec_counter += 1

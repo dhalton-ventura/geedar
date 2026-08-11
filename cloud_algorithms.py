@@ -15,7 +15,7 @@ __author__ = "Dhalton Ventura"
 __copyright__ = "Copyright 2026 HidroSat Project"
 __credits__ = ["Dhalton Ventura"]
 __license__ = "MIT"
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 __maintainer__ = "Dhalton Ventura"
 __email__ = "dhalton.ventura@ana.gov.br"
 __status__ = "Beta"
@@ -755,10 +755,31 @@ def wcs(product, virtual_station, image_collection, options):
 def gpm_daily_mean(product, virtual_station, image_collection, options):
     image_collection = ee.ImageCollection(image_collection)
     aoi = virtual_station.aoi
-    ref_band = product.scale_ref_band    
+    ref_band = product.scale_ref_band
     area = aoi.area()
-    image_collection = _set_pixel_count(image_collection, aoi, ref_band, 
-        "n_water_pixels")
+
+    date_list = ee.List(
+        image_collection.aggregate_array("img_date")).distinct().sort()
+
+    def reduce_date(date_str):
+        date_str = ee.String(date_str)
+        daily_collection = image_collection.filter(
+            ee.Filter.eq("img_date", date_str))
+        first_image = ee.Image(daily_collection.first())
+        daily_image = ee.Image(
+            daily_collection.select([ref_band]).mean()
+        ).rename([ref_band]).setDefaultProjection(
+            first_image.select(ref_band).projection()
+        ).copyProperties(first_image)
+        return daily_image.set(
+            "img_date", date_str,
+            "img_time", "12:00",
+            "img_datetime", date_str.cat(" 12:00"))
+
+    image_collection = ee.ImageCollection.fromImages(
+        date_list.map(reduce_date))
+    image_collection = _set_pixel_count(image_collection, aoi, ref_band,
+        "n_selected_pixels")
     return ee.ImageCollection(image_collection.map(
         lambda image: ee.Image(image).set("area", ee.Number(area))))
 
@@ -977,7 +998,7 @@ _algo_list = [
         "description": "Average of the calibrated hourly precipitation in the "
             + "area of interest.",
         "ref": "Ventura, D.L.T. (2021, unpublished)",
-        "required_bands": ["precipitationgreen"],
+        "required_bands": ["precipitation"],
         "main_function": gpm_daily_mean,
         "aux_functions": [],
         "export_vars": ["n_selected_pixels", "area"],
