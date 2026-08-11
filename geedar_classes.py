@@ -4892,7 +4892,7 @@ class GeedarDB:
         present_list = []
         missing_list = []
         for k in [*db_names]:
-            schema = db_names[k]["_schema"]
+            schema = db_names[k]["_schema"] or None
             table = db_names[k]["_table_name"]
             if inspector.has_table(table, schema=schema):
                 present_list.append(k)
@@ -5470,7 +5470,7 @@ class GeedarDB:
         # Remove columns with identity restriction (autoincrement).
         valid_cols = df_cols
         cols = inspect(conn).get_columns(db_names[table_key]["_table_name"], 
-            schema=db_names[table_key]["_schema"])    
+            schema=db_names[table_key]["_schema"] or None)
         has_identity = False
         for col in cols:
             if (col.get('autoincrement') is True 
