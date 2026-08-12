@@ -4551,7 +4551,7 @@ class GeedarDB:
         return self._is_conn_valid()
     @property
     def use_real_col_names(self):
-        return self._is_conn_valid()
+        return self._use_real_col_names
     @use_real_col_names.setter
     def use_real_col_names(self, new_value=True):
         if not isinstance(new_value, bool):
@@ -4905,7 +4905,7 @@ class GeedarDB:
         present_list = []
         missing_list = []
         for k in [*db_names]:
-            schema = db_names[k]["_schema"]
+            schema = db_names[k]["_schema"] or None
             table = db_names[k]["_table_name"]
             if inspector.has_table(table, schema=schema):
                 present_list.append(k)
@@ -5415,8 +5415,10 @@ class GeedarDB:
         table_key = self._check_table_key(table_key)
         
         db_names = self._db_names
-        table_name = (db_names[table_key]["_schema"] + "." 
-            + db_names[table_key]["_table_name"])
+        schema = db_names[table_key]["_schema"] or None
+        table_name = db_names[table_key]["_table_name"]
+        if schema:
+            table_name = schema + "." + table_name
         subdict = db_names[table_key]
         key_list = [*subdict.keys()]
         
@@ -5455,7 +5457,7 @@ class GeedarDB:
                 
         # Check if table and columns in 'db_names' exist in the database.
         
-        schema = subdict["_schema"]
+        schema = subdict["_schema"] or None
         table = subdict["_table_name"]
         inspector = inspect(conn)
         if not inspector.has_table(table, schema=schema):
@@ -5468,7 +5470,7 @@ class GeedarDB:
             if c.lower() not in [col.lower() for col in table_cols]]
         if len(unmatched_cols) > 0:
             raise ValueError("One or more columns in the input data frame "
-                + "were not found in the table ''" + table_name + "': " 
+                + "were not found in the table '" + table_name + "': "
                 + str(unmatched_cols) + ".")
 
         # Remove columns with identity restriction (autoincrement).
@@ -6638,13 +6640,16 @@ class GeedarApp:
         
         # Load input data.
         
-        if len(input_file) >= 5:           
-            # If input is a kml file...
-            # Build the user dataframe from kml file(s). The station identif. 
-            # is defined from the file name. Internal names of geometries are 
-            # ignored.
+        # If len(input_file) >= 5: the provided string may be a filename with
+        # typical extension (csv, kml, kmz).
+        if len(input_file) >= 5:
+
+            # If it is a kml file...
+            # Build the user dataframe from kml file(s). The station id.
+            # is defined from the file name. Internal names of geometries
+            # are ignored.
+            # Enforce pertaining options.
             if input_file[-4:].lower() in [".kml", ".kmz"]:
-                # KML file: enforce pertaining options.
                 if not op_mode in [0, 2]:
                     print("(!) Since your input file(s) is .kml, the "
                         + "operation will be enforced to mode 2.")
@@ -6679,8 +6684,8 @@ class GeedarApp:
                     user_df.loc[i] = [station_code, station_name, 
                         "auto", "auto"]
             
-            # Input data is in a shapefile. The attribute table must contain 
-            # the same miminum data expected for a CSV input file.
+            # Input data is in a shapefile. The attribute table must
+            # contain the same miminum data expected for a CSV input file.
             elif input_file[-4:] == ".shp":
                 if aoi_mode == 1:
                     print("(!) You provided a shapefile, but added the kml "
@@ -6763,7 +6768,7 @@ class GeedarApp:
             raise ValueError("A column for 'aoi_mode' should be in the "
                 +"input data.")
         elif aoi_col:
-            if aoi_mode == 1:
+            if aoi_mode == 1: # Shouldn't it be aoi_mode >= 0 ?
                 print("(!) Since your input data contains a column "
                     + "'aoi_mode', the corresponding command line parameter "
                     + "will be ignored.")
@@ -6777,16 +6782,18 @@ class GeedarApp:
         
         # Check AoI radius.
         radius_cols = demand_cols_dict["aoi_radius"]
-        if any(c in user_cols for c in radius_cols) and radius >= 0:
-            print("(!) Since your input data contains a column for the "
-                + "'radius', the command line parameter will be "
-                + "ignored.")
-            radius = -1            
-        # Use default radius value?
-        elif radius == -1 and aoi_mode <= 0:
-            radius = _AOI_DEFAULT_RADIUS
-            print("No radius value informed. Using the default value: "
-                + str(radius) + ".")
+        if any(c in user_cols for c in radius_cols):
+            if radius >= 0:
+                print("(!) Since your input data contains a column for the "
+                    + "'radius', the command line parameter will be "
+                    + "ignored.")
+                radius = -1
+        else:
+            # Use default radius value?
+            if radius == -1 and aoi_mode <= 0:
+                radius = _AOI_DEFAULT_RADIUS
+                print("No radius value informed. Using the default value: "
+                    + str(radius) + ".")
 
         # Check demand codes.        
         if demand_codes_strlist == ["auto"]:
@@ -6816,8 +6823,14 @@ class GeedarApp:
             self._validated_user_df = None
             return
         if len(user_df) == 0:
-            raise ValueError("The input file must have at least a header row "
-                + "and one data row.")
+            if op_mode >= 3:
+                if self._options_dict["stations"] == ["auto"]:
+                    sys.exit("No demand records in the database yet.")
+                sys.exit("No pending demand found for the selected "
+                    + "station(s).")
+            else:
+                print("No row to process in the input file.")
+                raise ValueError("Missing input data.")
         input_dir = self._input_dir
         aoi_mode = self._aoi_mode
         if aoi_mode is None:
