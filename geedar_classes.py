@@ -4941,20 +4941,53 @@ class GeedarDB:
         self._build_data_view()
         self._build_table_creation_dict()
 
+    # Checks if a table is present in the target database.
+    def _has_table(self, table, schema=None):
+        conn = self._conn
+        if conn.dialect.name != "mssql":
+            return inspect(conn).has_table(table, schema=schema)
+
+        table = str(table).replace("'", "''")
+        sqlstr = ("SELECT TOP 1 1 FROM INFORMATION_SCHEMA.TABLES WHERE "
+            + "TABLE_NAME = N'" + table + "'")
+        if schema is not None:
+            schema = str(schema).replace("'", "''")
+            sqlstr = sqlstr + " AND TABLE_SCHEMA = N'" + schema + "'"
+        return conn.exec_driver_sql(sqlstr).first() is not None
+
+    # Gets table columns from the target database.
+    def _get_table_columns(self, table, schema=None):
+        conn = self._conn
+        if conn.dialect.name != "mssql":
+            return inspect(conn).get_columns(table, schema=schema)
+
+        schema = str(schema or "dbo").replace("'", "''")
+        table = str(table).replace("'", "''")
+        sqlstr = """
+            SELECT c.name, t.name, c.is_identity
+            FROM sys.columns c
+            JOIN sys.objects o ON o.object_id = c.object_id
+            JOIN sys.schemas s ON s.schema_id = o.schema_id
+            JOIN sys.types t ON t.user_type_id = c.user_type_id
+            WHERE s.name = N'%schema%' AND o.name = N'%table%'
+            ORDER BY c.column_id
+        """.replace("%schema%", schema).replace("%table%", table)
+        return [{"name": row[0], "type": row[1],
+            "autoincrement": bool(row[2])}
+            for row in conn.exec_driver_sql(sqlstr)]
+
     # Returns a dictionary with two lists: the db_names' keys of the GEEDaR 
     # tables that are present and the ones that are missing in the target 
     # database.
     def _check_geedar_tables(self):
         db_names = self._db_names
         conn = self._conn
-        inspector = inspect(conn)
-        
         present_list = []
         missing_list = []
         for k in [*db_names]:
             schema = db_names[k]["_schema"] or None
             table = db_names[k]["_table_name"]
-            if inspector.has_table(table, schema=schema):
+            if self._has_table(table, schema=schema):
                 present_list.append(k)
             else:
                 missing_list.append(k)
@@ -5507,11 +5540,10 @@ class GeedarDB:
         
         schema = subdict["_schema"] or None
         table = subdict["_table_name"]
-        inspector = inspect(conn)
-        if not inspector.has_table(table, schema=schema):
+        if not self._has_table(table, schema=schema):
              raise ValueError("The table " + table + " was not found in "
-                 + "the target database.")
-        cols = inspector.get_columns(table, schema=schema)
+                  + "the target database.")
+        cols = self._get_table_columns(table, schema=schema)
         table_cols = [col["name"] for col in cols
             if str(col["type"]).lower() != "geometry"]
         unmatched_cols = [c for c in df_cols 
