@@ -5874,7 +5874,7 @@ class UserOptions:
             "default_value": "auto",
             "auto_assign_command": False
         },
-        "f": {
+        "z": {
             "name": "stations",
             "description": ("In operation mode 3, limits execution to "
                 + "demands associated with the informed station codes."),
