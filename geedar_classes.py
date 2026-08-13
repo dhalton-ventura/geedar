@@ -31,6 +31,7 @@ import copy
 import json
 import zipfile
 import pickle
+import time
 import pandas
 import ee
 from datetime import datetime, date, timedelta
@@ -52,6 +53,12 @@ __all__ = ["Product", "VirtualStation", "CloudAlgorithm", "LocalAlgorithm",
 # Max number of simultaneously processed pixels and images:
 _MAX_PROC_PIXELS = 10_000_000
 _MAX_SIM_IMAGES = 250
+_MAX_ATTEMPTS = 2
+_RETRY_WAIT_SECONDS = 300
+
+
+class _NoGroupRetryError(RuntimeError):
+    pass
 
 # Default value for the radius of the area of interest, in meters.
 _AOI_DEFAULT_RADIUS = 100
@@ -3589,12 +3596,17 @@ class Demand:
         try:
             reduction_info = self._reduce_img_group(cur_group)
         except Exception as e:
-            print(e)
-            print("No data was retrieved.")
-            return            
+            raise RuntimeError("Failed to retrieve image group "
+                + str(cur_group) + "/" + str(n_groups) + ".") from e
         if len(reduction_info["data_dict"].keys()) == 0:
             print("No data returned.")
-            return
+            self._current_image_group = cur_group + 1
+            return {
+                cur_group: {
+                    "reduction_info": reduction_info,
+                    "local_algo_info": None
+                }
+            }
         
         # Local algorithm application.
         if (self._local_algo is None 
@@ -3604,10 +3616,9 @@ class Demand:
             try:
                 local_algo_info = self._apply_local_algorithm()
             except Exception as e:
-                print(e)
-                print("Failed to apply the local algorithm to the previously "
-                    + "downloaded time series.")
-                local_algo_info = None
+                raise _NoGroupRetryError("Failed to apply the local algorithm to "
+                    + "image group " + str(cur_group) + "/" + str(n_groups)
+                    + ".") from e
         
         # Combined results.
         result_dict = {
@@ -3626,7 +3637,18 @@ class Demand:
             if self._save_type == "csv":
                 self.save_to_csv(self._save_to, overwrite=True, append=False)
             elif self._save_type == "db":
-                self.save_to_db(check_db=False)
+                for attempt in range(1, _MAX_ATTEMPTS + 1):
+                    try:
+                        self.save_to_db(check_db=False)
+                    except Exception as e:
+                        if attempt == _MAX_ATTEMPTS:
+                            raise _NoGroupRetryError(
+                                "Database save failed.") from e
+                        print("Database save failed; retrying in "
+                            + str(_RETRY_WAIT_SECONDS) + " seconds.")
+                        time.sleep(_RETRY_WAIT_SECONDS)
+                    else:
+                        break
             
         # Increase group counter.
         self._current_image_group = cur_group + 1
@@ -3651,8 +3673,22 @@ class Demand:
         if self._n_image_groups == 0:
             print("No data to process.")
         else:
-            for cur_group in range(n_groups):
-                cur_dict = self.next_group()
+            while self._current_image_group <= n_groups:
+                cur_group = self._current_image_group
+                for attempt in range(1, _MAX_ATTEMPTS + 1):
+                    try:
+                        cur_dict = self.next_group()
+                    except _NoGroupRetryError:
+                        raise
+                    except Exception as e:
+                        if attempt == _MAX_ATTEMPTS:
+                            raise
+                        print("Image group " + str(cur_group) + "/"
+                            + str(n_groups) + " failed; retrying in "
+                            + str(_RETRY_WAIT_SECONDS) + " seconds.")
+                        time.sleep(_RETRY_WAIT_SECONDS)
+                    else:
+                        break
                 if cur_dict is None:
                     return
                 result_dict = {**result_dict, **cur_dict}
@@ -3796,6 +3832,16 @@ class Demand:
     # 'data_status' is the default value to be used for the corresponding 
     # column in the 'data' table.
     def save_to_db(self, source_id=None, data_status=None, check_db=True):
+        """Saves the demand results in a single database transaction."""
+        try:
+            result = self._save_to_db(source_id, data_status, check_db)
+            self._save_to._conn.commit()
+            return result
+        except Exception:
+            self._save_to._conn.rollback()
+            raise
+
+    def _save_to_db(self, source_id=None, data_status=None, check_db=True):
         """
         Saves the data resulting from the demand processing into the target 
         database, as pointed by the GeedarDB object passed as argument at 
@@ -4043,7 +4089,8 @@ class Demand:
                 var_new_record.loc[0, var_name_col] = col_var_name
                 var_new_record.loc[0, var_unit_col] = ""
                 var_new_record.loc[0, var_label_col] = col_var_name
-                r = geedar_db.save_to_table("variable", var_new_record)
+                r = geedar_db.save_to_table("variable", var_new_record,
+                    commit=False)
                 if r != 1:
                     raise Exception("Failed to insert a new record for the " 
                         + "variable '" + col_var_name + "'.")
@@ -4119,7 +4166,7 @@ class Demand:
                 # Save acquisiton record.
                 r = geedar_db.save_to_table("acquisition", 
                     acq_df.loc[[acq_row],:], 
-                    avoid_duplication=False)
+                    avoid_duplication=False, commit=False)
                 if r != 1:
                     print("")
                     print(acq_df.loc[[acq_row],:])
@@ -4157,7 +4204,7 @@ class Demand:
                     # Save data record.
                     r = geedar_db.save_to_table("data", 
                         data_df.loc[[data_row],:], 
-                        avoid_duplication=False)
+                        avoid_duplication=False, commit=False)
                     if r != 1:
                         print("")
                         print(data_df.loc[[data_row],:])
@@ -4190,7 +4237,7 @@ class Demand:
                         # Save result (value) record.
                         r = geedar_db.save_to_table("result", 
                             value_df.loc[[val_row],:], 
-                            avoid_duplication=False)
+                            avoid_duplication=False, commit=False)
                         if r != 1:
                             print("")
                             print(value_df.loc[[val_row],:])
@@ -5385,7 +5432,7 @@ class GeedarDB:
     # present in the target table) will be saved.
     # Returns the number of saved records.
     def save_to_table(self, table_key, df, 
-            only_db_names=True, avoid_duplication=True):
+            only_db_names=True, avoid_duplication=True, commit=True):
         """
         Saves the data in the argument 'df' into the table specified by 
         'table_key'. Valid table keys: ['station', 'instrument', 'variable', 
@@ -5403,6 +5450,7 @@ class GeedarDB:
             avoid_duplication: if True, check for presumably identical records 
                 in the database to avoid duplication; if False, saves without 
                 checking for that (bool, optional).
+            commit: if True, commits the insertion immediately (bool, optional).
 
         Returns
         -------
@@ -5543,9 +5591,12 @@ class GeedarDB:
         conn = self._conn
         try:
             result = conn.execute(text(sqlstr))
-            conn.commit()
+            if commit:
+                conn.commit()
         except Exception as e:
             conn.rollback()
+            if not commit:
+                raise
             print(e)
             return -1
         else:
@@ -6725,6 +6776,7 @@ class GeedarApp:
                 user_df = demand_table.rename(
                     columns={v[0]:k for k,v in demand_cols_dict.items() 
                     if len(v) > 0})
+                user_df = user_df.loc[user_df["status"] == 1].copy()
                 station_codes = options_dict["stations"]
                 if station_codes != ["auto"]:
                     station_codes = [str(code) for code in station_codes]
@@ -7787,7 +7839,7 @@ class GeedarApp:
             cur_demand = Demand(cur_station, cur_product, cloud_algo, reducer, 
                 local_algo, start_date=start_date, end_date=end_date, 
                 save_to=save_to, demand_id=demand_id,
-                date_list=date_list)
+                date_list=date_list, auto_save=(op_mode == 3))
             
             demand_dict[demand_count] = {
                 "demand_id": demand_id,
@@ -7839,12 +7891,18 @@ class GeedarApp:
                     rename_old_file = True
                 else:
                     if not cache_dict["result"]["finished"]:
-                        r = input("It seems that the last execution was " 
-                            + "interrupted. Try to resume it? y/[n]: ")
-                        if r.lower() == "y":
-                            self._proc_dict = cache_dict
-                        else:
+                        if self._op_mode == 3:
+                            print("The last database execution was "
+                                + "interrupted. It will resume from the "
+                                + "latest data saved in the database.")
                             rename_old_file = True
+                        else:
+                            r = input("It seems that the last execution was "
+                                + "interrupted. Try to resume it? y/[n]: ")
+                            if r.lower() == "y":
+                                self._proc_dict = cache_dict
+                            else:
+                                rename_old_file = True
                 if rename_old_file:
                     try:
                         os.replace(cache_file, cache_file + ".bak")
@@ -8012,6 +8070,7 @@ class GeedarApp:
         print("Executing demands...")
         
         exec_counter = 0
+        failed_demands = []
         for demand_ind in [i for i in [*demand_dict] if i > prev_ind]:
             demand_id = demand_dict[demand_ind]["demand_id"]
             cur_demand = demand_dict[demand_ind]["demand_obj"]
@@ -8024,15 +8083,26 @@ class GeedarApp:
             demand_code_str = cur_demand.get_demand_code(format_as="str")
             print("\n->> Demand id #" + str(demand_id) + ": " + site_code 
                 + site_name_str + ", " + demand_code_str)
-            cur_result = cur_demand.execute()
+            try:
+                cur_result = cur_demand.execute()
+            except Exception as e:
+                if self._op_mode != 3:
+                    raise
+                failed_demands.append(demand_id)
+                print("Demand id #" + str(demand_id) + " failed: " + str(e)
+                    + " Continuing with the next demand.")
+                continue
             proc_dict["demand"]["dict"][demand_ind]["result_obj"] = cur_result
             proc_dict["demand"]["cur_index"] = demand_ind
             # Update cache.
             self._update_cache()
             exec_counter += 1
         
-        if exec_counter == 0:
+        if exec_counter == 0 and len(failed_demands) == 0:
             print("Nothing to process.")
+        if len(failed_demands) > 0:
+            raise RuntimeError(str(len(failed_demands)) + " demand(s) failed: "
+                + ", ".join(str(i) for i in failed_demands) + ".")
         
         proc_dict["result"]["result_df"] = self._build_result_df()
         proc_dict["result"]["finished"] = True
