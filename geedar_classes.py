@@ -3644,6 +3644,7 @@ class Demand:
                         if attempt == _MAX_ATTEMPTS:
                             raise _NoGroupRetryError(
                                 "Database save failed.") from e
+                        print(e)
                         print("Database save failed; retrying in "
                             + str(_RETRY_WAIT_SECONDS) + " seconds.")
                         time.sleep(_RETRY_WAIT_SECONDS)
@@ -4083,7 +4084,7 @@ class Demand:
             if len(var_id) == 0:
                 # No corresponding variable in the database. A new record 
                 # must be created.
-                last_id = int(var_table[var_id_col].max())
+                last_id = geedar_db.get_last_id("variable") #int(var_table[var_id_col].max())
                 var_new_record = pandas.DataFrame(columns=var_table.columns)
                 var_new_record.loc[0, var_id_col] = last_id + 1
                 var_new_record.loc[0, var_name_col] = col_var_name
