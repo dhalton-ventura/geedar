@@ -26,7 +26,6 @@ __status__ = "Beta"
 import math
 import ee
 from geedar_classes import CloudAlgorithm
-import vinte_core
 
 
 #%% Export
