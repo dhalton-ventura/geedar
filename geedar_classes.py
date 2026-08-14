@@ -7225,7 +7225,7 @@ class GeedarApp:
             new_df["kml_path"] = pandas.Series(data="auto", index=df.index, 
                 dtype="string")
             new_df.loc[new_df["aoi_mode"] == 0, "kml_path"] = pandas.NA
-        # Then validate paths.
+        # Then build paths.
         for i in [ind for ind in new_df.index 
                 if pandas.notna(new_df.loc[ind, "kml_path"])]:
             if new_df.loc[i, "kml_path"] == "auto":
