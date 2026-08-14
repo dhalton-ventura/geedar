@@ -26,6 +26,7 @@ __status__ = "Beta"
 import math
 import ee
 from geedar_classes import CloudAlgorithm
+import vinte_core
 
 
 #%% Export
@@ -881,169 +882,167 @@ def simple_water_selection(product, virtual_station, image_collection,
 #%% Build a catalog of algorithms
 
 _algo_list = [
-     {
-        "algo_code": 0,
-        "name": "none",
-        "description": "This algorithm makes no change to the image data.",
-        "ref": "",
-        "required_bands": [], 
-        "main_function": do_nothing,
-        "aux_functions": [],
-        "export_vars": [],
-        "export_bands": [],
-        "options": None
-     },
-     {
-        "algo_code": 1,
-        "name": "StdCloudMask",
-        "description": "This algorithm removes pixels with cloud, cloud "
-            + "shadow or high aerosol, based on the product's pixel quality "
-            + "layer.",
-        "ref": "",
-        "required_bands": [], 
-        "main_function": std_cloud_mask,
-        "aux_functions": [_set_pixel_count, _mask_bad_pixels],
-        "export_vars": ["n_valid_pixels", "n_total_pixels"],
-        "export_bands": [],
-        "options": None
-     },
-     {
-        "algo_code": 2,
-        "name": "MOD3R emulator",
-        "description": "This algorithm replicates, to the possible extent, "
-            + "the MOD3R algorithm, developed by the researcher Jean-Michel "
-            + "Martinez (IRD, France).",
-        "ref": "Ventura, D.L.T. (2019, unpublished)",
-        "required_bands": ["red", "NIR", ["SensorZenith","ViewZenith"], 
-            "SolarZenith", ["SensorAzimuth","RelativeAzimuth"]],
-        "main_function": mod3r,
-        "aux_functions": [_split_modis_composites, _mod3r_qual_flag, 
-            _set_pixel_count, _mask_bad_pixels],
-        "export_vars": ["n_selected_pixels", "n_valid_pixels", 
-            "n_total_pixels", "vzen", "sunglint", "qual_flag"],
-        "export_bands": [],
-        "options": None
-     },
-     {
-        "algo_code": 3,
-        "name": "minNDVI",
-        "description": "Applies k-means clustering to bands red and NIR and "
-            + "defines as the water-representative cluster the one with the "
-            + "lowest NDVI.",
-        "ref": "Ventura, D.L.T. (2019, unpublished)",
-        "required_bands": ["red", "NIR"],
-        "main_function": wcs,
-        "aux_functions": [_set_pixel_count, _apply_thresholds, 
-            _mask_bad_pixels, _split_modis_composites, _mod3r_qual_flag, 
-            _generic_qual_flag],
-        "export_vars": ["n_selected_pixels", "n_valid_pixels", 
-            "n_total_pixels", "vzen", "sunglint", "qual_flag"],
-        "export_bands": [],
-        "options": {"max_n_clusters": 20, "selector_id": "min_ndvi"}
-     },
-     {
-        "algo_code": 4,
-        "name": "minIR",
-        "description": "Applies k-means clustering to bands red and NIR and "
-            + "defines as the water-representative cluster the one with the "
-            + "lowest reflectance in the near-infrared.",
-        "ref": "Ventura, D.L.T. (2019, unpublished)",
-        "required_bands": ["red", "NIR"],
-        "main_function": wcs,
-        "aux_functions": [_set_pixel_count, _apply_thresholds, 
-            _mask_bad_pixels, _split_modis_composites, _mod3r_qual_flag, 
-            _generic_qual_flag],
-        "export_vars": ["n_selected_pixels", "n_valid_pixels", 
-            "n_total_pixels", "vzen", "sunglint", "qual_flag"],
-        "export_bands": [],
-        "options": {"max_n_clusters": 20, "selector_id": "min_ir"}
-     },
-     {
-        "algo_code": 5,
-        "name": "maxWI",
-        "description": "Applies k-means clustering to bands red and NIR and "
-            + "defines as the water-representative cluster the one with the "
-            + "highest value of a custom water index.",
-        "ref": "Ventura, D.L.T. (2026, unpublished)",
-        "required_bands": ["green", "red", "NIR", "wl1500", "wl2000"],
-        "main_function": wcs,
-        "aux_functions": [_set_pixel_count, _apply_thresholds, 
-            _mask_bad_pixels, _split_modis_composites, _mod3r_qual_flag, 
-            _generic_qual_flag],
-        "export_vars": ["n_selected_pixels", "n_valid_pixels", 
-            "n_total_pixels", "vzen", "sunglint", "qual_flag"],
-        "export_bands": [],
-        "options": {"max_n_clusters": 20, "selector_id": "max_wi"}
-     },
-     {
-        "algo_code": 6,
-        "name": "maxNDWIHVT",
-        "description": "Applies k-means clustering and selects as water-"
-            + "representative the cluster with the highest NDWIHVT, a custom "
-            + "water index.",
-        "ref": "Ventura, D.L.T. (2026, unpublished)",
-        "required_bands": ["green", "red", "NIR", "wl1500", "wl2000"],
-        "main_function": wcs,
-        "aux_functions": [_set_pixel_count, _apply_thresholds, 
-            _mask_bad_pixels, _split_modis_composites, _mod3r_qual_flag, 
-            _generic_qual_flag],
-        "export_vars": ["n_selected_pixels", "n_valid_pixels", 
-            "n_total_pixels", "vzen", "sunglint", "qual_flag"],
-        "export_bands": [],
-        "options": {"max_n_clusters": 20, "selector_id": "ndwihvt"}
-     },
-     {
-        "algo_code": 14,
-        "name": "GPM_daily_mean",
-        "description": "Average of the calibrated hourly precipitation in the "
-            + "area of interest.",
-        "ref": "Ventura, D.L.T. (2021, unpublished)",
-        "required_bands": ["precipitation"],
-        "main_function": gpm_daily_mean,
-        "aux_functions": [],
-        "export_vars": ["n_selected_pixels", "area"],
-        "export_bands": [],
-        "options": {}
-     },
-     {
-        "algo_code": 15,
-        "name": "Bloom-Tolerant Water Selection",
-        "description": "Selects 'good' water pixels, including those affected "
-            + "by dense algal blooms, and excluding pixels affected by glint "
-            + "and strong spectral mixture or adjacency effects.",
-        "ref": "Ventura, D.L.T.V. (unpublished)",
-        "required_bands": ["blue","green","red","NIR","wl1500","wl2000"],
-        "main_function": simple_water_selection,
-        "aux_functions": [_set_pixel_count, _mask_bad_pixels, 
-            _simple_cloud_mask, _simple_water_detection, _simple_shadow_mask, 
-            _water_product_qual_flag],
-        "export_vars": ["n_selected_pixels", "n_valid_pixels", 
-            "n_total_pixels", "n_bloom_pixels", "n_water_pixels", "qual_flag"],
-        "export_bands": [],
-        "options": {"bloom_tolerant": True, "max_swir1_val": 100, 
-            "min_vnir_val": 0, "max_vis_val": 3000}
-     },
-     {
-        "algo_code": 16,
-        "name": "Simple Water Selection",
-        "description": "Selects 'good' water pixels, excluding pixels "
-            + "affected by glint and strong spectral mixture or adjacency " 
-            + "effects.",
-        "ref": "Ventura, D.L.T.V. (unpublished)",
-        "required_bands": ["blue","green","red","NIR","wl1500","wl2000"],
-        "main_function": simple_water_selection,
-        "aux_functions": [_set_pixel_count, _mask_bad_pixels, 
-            _simple_cloud_mask, _simple_water_detection, _simple_shadow_mask, 
-            _water_product_qual_flag],
-        "export_vars": ["n_selected_pixels", "n_valid_pixels", 
-            "n_total_pixels", "n_bloom_pixels", "n_water_pixels", "qual_flag"],
-        "export_bands": [],
-        "options": {"bloom_tolerant": False, "max_swir1_val": 100, 
-            "min_vnir_val": 0, "max_vis_val": 3000}
-     }
+    {
+    "algo_code": 0,
+    "name": "none",
+    "description": "This algorithm makes no change to the image data.",
+    "ref": "",
+    "required_bands": [], 
+    "main_function": do_nothing,
+    "aux_functions": [],
+    "export_vars": [],
+    "export_bands": [],
+    "options": None
+    },
+    {
+    "algo_code": 1,
+    "name": "StdCloudMask",
+    "description": "This algorithm removes pixels with cloud, cloud "
+        + "shadow or high aerosol, based on the product's pixel quality "
+        + "layer.",
+    "ref": "",
+    "required_bands": [], 
+    "main_function": std_cloud_mask,
+    "aux_functions": [_set_pixel_count, _mask_bad_pixels],
+    "export_vars": ["n_valid_pixels", "n_total_pixels"],
+    "export_bands": [],
+    "options": None
+    },
+    {
+    "algo_code": 2,
+    "name": "MOD3R emulator",
+    "description": "This algorithm replicates, to the possible extent, "
+        + "the MOD3R algorithm, developed by the researcher Jean-Michel "
+        + "Martinez (IRD, France).",
+    "ref": "Ventura, D.L.T. (2019, unpublished)",
+    "required_bands": ["red", "NIR", ["SensorZenith","ViewZenith"], 
+        "SolarZenith", ["SensorAzimuth","RelativeAzimuth"]],
+    "main_function": mod3r,
+    "aux_functions": [_split_modis_composites, _mod3r_qual_flag, 
+        _set_pixel_count, _mask_bad_pixels],
+    "export_vars": ["n_selected_pixels", "n_valid_pixels", 
+        "n_total_pixels", "vzen", "sunglint", "qual_flag"],
+    "export_bands": [],
+    "options": None
+    },
+    {
+    "algo_code": 3,
+    "name": "minNDVI",
+    "description": "Applies k-means clustering to bands red and NIR and "
+        + "defines as the water-representative cluster the one with the "
+        + "lowest NDVI.",
+    "ref": "Ventura, D.L.T. (2019, unpublished)",
+    "required_bands": ["red", "NIR"],
+    "main_function": wcs,
+    "aux_functions": [_set_pixel_count, _apply_thresholds, 
+        _mask_bad_pixels, _split_modis_composites, _mod3r_qual_flag, 
+        _generic_qual_flag],
+    "export_vars": ["n_selected_pixels", "n_valid_pixels", 
+        "n_total_pixels", "vzen", "sunglint", "qual_flag"],
+    "export_bands": [],
+    "options": {"max_n_clusters": 20, "selector_id": "min_ndvi"}
+    },
+    {
+    "algo_code": 4,
+    "name": "minIR",
+    "description": "Applies k-means clustering to bands red and NIR and "
+        + "defines as the water-representative cluster the one with the "
+        + "lowest reflectance in the near-infrared.",
+    "ref": "Ventura, D.L.T. (2019, unpublished)",
+    "required_bands": ["red", "NIR"],
+    "main_function": wcs,
+    "aux_functions": [_set_pixel_count, _apply_thresholds, 
+        _mask_bad_pixels, _split_modis_composites, _mod3r_qual_flag, 
+        _generic_qual_flag],
+    "export_vars": ["n_selected_pixels", "n_valid_pixels", 
+        "n_total_pixels", "vzen", "sunglint", "qual_flag"],
+    "export_bands": [],
+    "options": {"max_n_clusters": 20, "selector_id": "min_ir"}
+    },
+    {
+    "algo_code": 5,
+    "name": "maxWI",
+    "description": "Applies k-means clustering to bands red and NIR and "
+        + "defines as the water-representative cluster the one with the "
+        + "highest value of a custom water index.",
+    "ref": "Ventura, D.L.T. (2026, unpublished)",
+    "required_bands": ["green", "red", "NIR", "wl1500", "wl2000"],
+    "main_function": wcs,
+    "aux_functions": [_set_pixel_count, _apply_thresholds, 
+        _mask_bad_pixels, _split_modis_composites, _mod3r_qual_flag, 
+        _generic_qual_flag],
+    "export_vars": ["n_selected_pixels", "n_valid_pixels", 
+        "n_total_pixels", "vzen", "sunglint", "qual_flag"],
+    "export_bands": [],
+    "options": {"max_n_clusters": 20, "selector_id": "max_wi"}
+    },
+    {
+    "algo_code": 6,
+    "name": "maxNDWIHVT",
+    "description": "Applies k-means clustering and selects as water-"
+        + "representative the cluster with the highest NDWIHVT, a custom "
+        + "water index.",
+    "ref": "Ventura, D.L.T. (2026, unpublished)",
+    "required_bands": ["green", "red", "NIR", "wl1500", "wl2000"],
+    "main_function": wcs,
+    "aux_functions": [_set_pixel_count, _apply_thresholds, 
+        _mask_bad_pixels, _split_modis_composites, _mod3r_qual_flag, 
+        _generic_qual_flag],
+    "export_vars": ["n_selected_pixels", "n_valid_pixels", 
+        "n_total_pixels", "vzen", "sunglint", "qual_flag"],
+    "export_bands": [],
+    "options": {"max_n_clusters": 20, "selector_id": "ndwihvt"}
+    },
+    {
+    "algo_code": 14,
+    "name": "GPM_daily_mean",
+    "description": "Average of the calibrated hourly precipitation in the "
+        + "area of interest.",
+    "ref": "Ventura, D.L.T. (2021, unpublished)",
+    "required_bands": ["precipitation"],
+    "main_function": gpm_daily_mean,
+    "aux_functions": [],
+    "export_vars": ["n_selected_pixels", "area"],
+    "export_bands": [],
+    "options": {}
+    },
+    {
+    "algo_code": 15,
+    "name": "Bloom-Tolerant Water Selection",
+    "description": "Selects 'good' water pixels, including those affected "
+        + "by dense algal blooms, and excluding pixels affected by glint "
+        + "and strong spectral mixture or adjacency effects.",
+    "ref": "Ventura, D.L.T.V. (unpublished)",
+    "required_bands": ["blue","green","red","NIR","wl1500","wl2000"],
+    "main_function": simple_water_selection,
+    "aux_functions": [_set_pixel_count, _mask_bad_pixels, 
+        _simple_cloud_mask, _simple_water_detection, _simple_shadow_mask, 
+        _water_product_qual_flag],
+    "export_vars": ["n_selected_pixels", "n_valid_pixels", 
+        "n_total_pixels", "n_bloom_pixels", "n_water_pixels", "qual_flag"],
+    "export_bands": [],
+    "options": {"bloom_tolerant": True, "max_swir1_val": 100, 
+        "min_vnir_val": 0, "max_vis_val": 3000}
+    },
+    {
+    "algo_code": 16,
+    "name": "Simple Water Selection",
+    "description": "Selects 'good' water pixels, excluding pixels "
+        + "affected by glint and strong spectral mixture or adjacency " 
+        + "effects.",
+    "ref": "Ventura, D.L.T.V. (unpublished)",
+    "required_bands": ["blue","green","red","NIR","wl1500","wl2000"],
+    "main_function": simple_water_selection,
+    "aux_functions": [_set_pixel_count, _mask_bad_pixels, 
+        _simple_cloud_mask, _simple_water_detection, _simple_shadow_mask, 
+        _water_product_qual_flag],
+    "export_vars": ["n_selected_pixels", "n_valid_pixels", 
+        "n_total_pixels", "n_bloom_pixels", "n_water_pixels", "qual_flag"],
+    "export_bands": [],
+    "options": {"bloom_tolerant": False, "max_swir1_val": 100, 
+        "min_vnir_val": 0, "max_vis_val": 3000}
+    }
 ]
-
 
 cloud_algo_catalog = {a["algo_code"]: CloudAlgorithm(a) 
     for a in _algo_list}
-

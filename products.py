@@ -453,6 +453,29 @@ _product_list = [
         "vis_params": {"bands": ["B4","B3","B2"], "min": 0, "max": 2000}
     },
     {
+        "product_code": 211,
+        "product_name": "S1_GRD",
+        "instrument": instrument_catalog[12],
+        "description": "Sentinel-1 Synthetic Aperture Radar (SAR) Ground Range Detected (GRD) images.",
+        "collection": ee.ImageCollection("COPERNICUS/S1_GRD"),
+        "start_date": "2014-10-03",
+        "fixed_time": "",
+        "scale_ref_band": "VV",
+        "rough_scale": 10,
+        "need_to_mosaic": True,
+        "band_list": ["VV", "VH"],
+        "quality_layer_names": [],
+        "quality_layer_inds": [],
+        "quality_layer_start_bits": [],
+        "quality_layer_end_bits": [],
+        "test_expression": [],
+        "scaling_factor": [],
+        "offset": [],
+        "data_band_inds": [0, 1],
+        "common_bands": {"blue": -1, "green": -1, "red": -1, "NIR": -1, "SWIR": -1, "wl400": -1, "wl440": -1, "wl490": -1, "wl620": -1, "wl665": -1, "wl675": -1, "wl680": -1, "wl705": -1, "wl740": -1, "wl780": -1, "wl800": -1, "wl900": -1, "wl1200": -1, "wl1500": -1, "wl2000": -1, "wl10500": -1, "wl11500": -1, "VV": 0, "VH": 1},
+        "vis_params": {"bands": ["VV"], "min": -25, "max": 0}
+    },
+    {
         "product_code": 311,
         "product_name": "Landsat_4_L2_Collection2",
         "instrument": instrument_catalog[6],
@@ -591,6 +614,7 @@ _product_list = [
         "vis_params": {"bands": ["precipitation"], "palette": ["white","blue"], "opacity": 0.5, "min": 0, "max": 4}
     }
 ]
+
 
 
 #%% Read list into a dictionary Product objects

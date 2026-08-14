@@ -128,9 +128,18 @@ _instrument_list = [
         "revisit": 1,
         "description": "The Global Precipitation Measurement (GPM) mission.",
         "label": "GPM"
+    },
+    {
+        "inst_code": 12,
+        "name": "C-SAR/Sentinel-1",
+        "mission": "Sentinel-1",
+        "revisit": 6,
+        "description": "C-band Synthetic Aperture Radar (C-SAR) instrument on the Sentinel-1 satellites (S1A, S1B).",
+        "label": "Sentinel-1"
     }
 ]
 
 instrument_catalog = {i["inst_code"]: Instrument(inst_code=i["inst_code"], 
     name=i["name"], mission=i["mission"], revisit=i["revisit"], 
     description=i["description"], label=i["label"]) for i in _instrument_list}
+
