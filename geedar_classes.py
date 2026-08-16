@@ -6356,6 +6356,8 @@ class GeedarApp:
             columns required by GEEDaR (dict or None, defaults to None).
         cache_file: if True, the app will save the progress of the processing 
             of data demands (bool, defaults to True).
+        auto_save: if True, results will be saved stepwisely during demand's
+            execution.
     
     Properties
     ----------
@@ -6428,7 +6430,8 @@ class GeedarApp:
     def __init__(self, user_options, 
             product_catalog, cloud_algo_catalog, local_algo_catalog,
             reducer_catalog, instrument_catalog, variable_catalog,
-            default_demand_code=None, db_config=None, cache_file=True):
+            default_demand_code=None, db_config=None, cache_file=True, 
+            auto_save=False):
         
         print("Instantiating GeedarApp...")
 
@@ -6586,13 +6589,19 @@ class GeedarApp:
                 if any(type(catalog[c]).__name__ != catalog_type 
                         for c in catalog):
                     raise TypeError("'" + catalog_name + "' must be a dict of " 
-                        + catalog_type + " objects.")               
+                        + catalog_type + " objects.")
+        
+        # Autosave.
+        if not isinstance(auto_save, bool):
+            raise TypeError("'auto_save' must be boolean")
+        
         # Save attributes:
         self._args = args
         self._options_dict = args["user_options"].options_dict
         self._cache_file = cache_file
         self._default_demand_code = default_demand_code
         self._db_config = db_config
+        self._auto_save = auto_save
     
     # Sets input path attributes.
     def _set_input_path(self, input_path):
@@ -7875,8 +7884,8 @@ class GeedarApp:
             reducer = reducer_catalog[reducer_code]
             cur_demand = Demand(cur_station, cur_product, cloud_algo, reducer, 
                 local_algo, start_date=start_date, end_date=end_date, 
-                save_to=save_to, demand_id=demand_id,
-                date_list=date_list, auto_save=(op_mode == 3))
+                save_to=save_to, demand_id=demand_id, date_list=date_list, 
+                auto_save=(op_mode == 3 or self._auto_save))
             
             demand_dict[demand_count] = {
                 "demand_id": demand_id,
@@ -8294,7 +8303,7 @@ class GeedarApp:
                     print("\nExtra file saved: '" + extra_output_path + "'.")
         
         # Save to database?
-        if op_mode >= 3:
+        if op_mode >= 3 and not self._auto_save:
             print("\nSaving results to the database...")
             save_report["db"]["data_dict"] = self._save_results_to_db()
             save_report["db"]["saved"] = True

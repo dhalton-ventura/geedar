@@ -109,20 +109,6 @@ from geedar_classes import GeedarApp, UserOptions
 # Ignore the first argument, which is the script file's name.
 cmd_line = sys.argv[1:]
 
-# For testing, simply uncomment one of the following lines:
-#cmd_line = ["test/test_input_mode1.csv", "-o:test/test_output_mode1.csv", "-c:P314C15L5R1", "-t:5"]
-#cmd_line = ["test/test_input_mode1a.csv", "-o:test/test_output_mode1a.csv", "-c:P314C15L3R0", "-t:5"] # Colunas mínimas; aoi=0
-#cmd_line = ["test/test_input_mode1a.csv", "-o:test/test_output_mode1a.csv", "-c:P314C15L3R0", "-t:5", "-k"] # Colunas mínimas; aoi=1
-#cmd_line = ["test/test_input_mode1c.csv", "-o:test/test_output_mode1c.csv", "-c:P314C15L3R0", "-t:5", "-k"] # Colunas mínimas; aoi misto; radius col;
-#cmd_line = ["test/test_input_mode2b.csv", "-o:test/test_output_mode2b.csv", "-c:[P201C15L0R1,P314C15L0R1]", "-k", "-s"]
-#cmd_line = ["test/test_input_mode2b.csv", "-o:test/test_output_mode2b.csv", "-c:[P111C4L3R1]", "-k"]
-#cmd_line = ["test/KML/Três Marias - Braço Paraopeba.kml", "-c:P201C15L0R1"]
-#cmd_line = ["geedar_db"]
-#cmd_line = ["test/capivara.csv", "-r:100", "-c:[P201C15L00R1,P314C15L00R1,P315C15L00R1]", "-s"]
-#cmd_line = ["test/capivara.csv", "-r:100", "-c:[P201C15L00R1,P201C16L00R1]", "-s", "-o:comp_15_16.csv"]
-#cmd_line = ["test/KML/0318S06036W1 - Manacapuru.kml", "-c:P315C15L0R1"]
-#cmd_line = ["test/Can1Res2.csv", "-k", "-c:[P111C03L00R1,P112C03L00R1]", "-t:7", "-o:teste_Rita.csv"]
-
 # Validate the command line arguments, importing them as a dictionary.
 user_options = UserOptions(cmd_line=cmd_line)
 
