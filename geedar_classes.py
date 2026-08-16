@@ -6592,6 +6592,7 @@ class GeedarApp:
                         + catalog_type + " objects.")
         
         # Autosave.
+        auto_save = args["auto_save"]
         if not isinstance(auto_save, bool):
             raise TypeError("'auto_save' must be boolean")
         
