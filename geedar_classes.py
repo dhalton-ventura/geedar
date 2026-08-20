@@ -7939,9 +7939,9 @@ class GeedarApp:
                 else:
                     if not cache_dict["result"]["finished"]:
                         if self._op_mode == 3:
-                            print("The last database execution was "
+                            print("(The last database execution was "
                                 + "interrupted. It will resume from the "
-                                + "latest data saved in the database.")
+                                + "latest data saved in the database.)")
                             rename_old_file = True
                         else:
                             r = input("It seems that the last execution was "
@@ -7953,9 +7953,9 @@ class GeedarApp:
                 if rename_old_file:
                     try:
                         os.replace(cache_file, cache_file + ".bak")
-                        print("The old cache file was renamed to " 
+                        print("(The old cache file was renamed to " 
                             + cache_file + ".bak and a new one will be "
-                            + "created.")
+                            + "created.)")
                     except:
                         self._cache_file = None
                         print("A cache will not be used.")
