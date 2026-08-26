@@ -3387,7 +3387,8 @@ class Demand:
                     short_date_list = cur_date_list                    
                 print("\nRetrieving data for date(s) " 
                     + str(date_inds[cur_date_index] + 1) + "-" 
-                    + str(date_inds[cur_date_index + cur_group_size - 1] + 1) 
+                    + str(date_inds[
+                        cur_date_index + len(cur_date_list) - 1] + 1)
                     + "/" + str(n_all_dates) + ": " 
                     + str(short_date_list) + "...")
                 try:
@@ -3404,7 +3405,8 @@ class Demand:
                     if (str(e)[:40] == 
                             "Output of image computation is too large"):
                         relax_demand = True
-                    elif str(e) == "Computation timed out.":
+                    elif str(e) in ("Computation timed out.",
+                            "User memory limit exceeded."):
                         n_timeouts += 1
                         relax_demand = True
                 except Exception as e:
@@ -3436,7 +3438,7 @@ class Demand:
                     + "attempts for date(s) " + str(short_date_list) + ".") \
                     from last_error
             else:
-                cur_date_index += cur_group_size
+                cur_date_index += len(cur_date_list)
                 
             if type(retrieved_dict) is dict:
                 data_dict = {**data_dict, **retrieved_dict}
@@ -5971,6 +5973,15 @@ class UserOptions:
             "default_value": "auto",
             "auto_assign_command": False
         },
+        "d": {
+            "name": "demand_ids",
+            "description": ("In operation mode 3, limits execution to "
+                + "demands with the informed database ids."),
+            "is_a_list": True,
+            "valid_values": [str, int],
+            "default_value": "auto",
+            "auto_assign_command": False
+        },
         "k": {
             "name": "kml",
             "description": "Sets 'kml' as the source of the information for " 
@@ -6829,6 +6840,11 @@ class GeedarApp:
                     station_codes = [str(code) for code in station_codes]
                     user_df = user_df.loc[user_df["station_code"].astype(
                         str).isin(station_codes)].copy()
+                demand_ids = options_dict["demand_ids"]
+                if demand_ids != ["auto"]:
+                    demand_ids = [str(demand_id) for demand_id in demand_ids]
+                    user_df = user_df.loc[user_df["demand_id"].astype(
+                        str).isin(demand_ids)].copy()
 
             # CSV file.
             elif input_file[-4:] == ".csv":
@@ -6923,10 +6939,10 @@ class GeedarApp:
             return
         if len(user_df) == 0:
             if op_mode >= 3:
-                if self._options_dict["stations"] == ["auto"]:
+                if (self._options_dict["stations"] == ["auto"] and
+                        self._options_dict["demand_ids"] == ["auto"]):
                     sys.exit("No demand records in the database yet.")
-                sys.exit("No pending demand found for the selected "
-                    + "station(s).")
+                sys.exit("No pending demand found for the selected filter(s).")
             else:
                 print("No row to process in the input file.")
                 raise ValueError("Missing input data.")
