@@ -11,7 +11,7 @@ __author__ = "Dhalton Ventura"
 __copyright__ = "Copyright 2026 HidroSat Project"
 __credits__ = ["Dhalton Ventura"]
 __license__ = "MIT"
-__version__ = "2.0.2"
+__version__ = "2.1"
 __maintainer__ = "Dhalton Ventura"
 __email__ = "dhalton.ventura@ana.gov.br"
 __status__ = "Beta"
@@ -64,7 +64,8 @@ from local_algorithms import local_algo_catalog
 from variables import variable_catalog
 from instruments import instrument_catalog
 from db_config import db_config
-from geedar_classes import VirtualStation, GeedarDB
+from geedar_core.database import GeedarDB
+from geedar_core.station import VirtualStation
 from visual_tool_functions import (add_ee_layer, 
     reset_session, switch_to_mode,
     get_basic_data_from_csv, get_basic_data_from_db,

@@ -6,7 +6,7 @@ chcp 1252 >nul
 setlocal EnableDelayedExpansion
 
 echo.
-echo This is the installer for GEEDaR 2.0.2
+echo This is the installer for GEEDaR 2.1
 echo.
 
 :: Current directory

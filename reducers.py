@@ -18,7 +18,7 @@ __author__ = "Dhalton Ventura"
 __copyright__ = "Copyright 2026 HidroSat Project"
 __credits__ = ["Dhalton Ventura"]
 __license__ = "MIT"
-__version__ = "2.0.2"
+__version__ = "2.1"
 __maintainer__ = "Dhalton Ventura"
 __email__ = "dhalton.ventura@ana.gov.br"
 __status__ = "Beta"
@@ -27,7 +27,7 @@ __status__ = "Beta"
 #%% Import
 
 import ee
-from geedar_classes import Reducer
+from geedar_core.catalog_types import Reducer
 #from stats import stat_catalog
 
 

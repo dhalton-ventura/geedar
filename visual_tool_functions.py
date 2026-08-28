@@ -8,7 +8,7 @@ __author__ = "Dhalton Ventura"
 __copyright__ = "Copyright 2026 HidroSat Project"
 __credits__ = ["Dhalton Ventura"]
 __license__ = "MIT"
-__version__ = "2.0.2"
+__version__ = "2.1"
 __maintainer__ = "Dhalton Ventura"
 __email__ = "dhalton.ventura@ana.gov.br"
 __status__ = "Beta"
@@ -26,8 +26,10 @@ import branca.colormap as cm
 import ee
 
 from datetime import datetime, timedelta, timezone
-from geedar_classes import (VirtualStation, Demand, GeedarApp, 
-    cast_numeric_list, extract_from_kml)
+from geedar_core.app import GeedarApp
+from geedar_core.demand import Demand
+from geedar_core.station import VirtualStation
+from geedar_core.utils import cast_numeric_list, extract_from_kml
 from cloud_algorithms import cloud_algo_catalog
 from reducers import reducer_catalog
 from local_algorithms import local_algo_catalog

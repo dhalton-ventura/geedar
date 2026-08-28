@@ -1,7 +1,7 @@
 import sys
 import pandas as pd
 from db_config import db_config
-from geedar_classes import GeedarDB
+from geedar_core.database import GeedarDB
 
 try:
     geedar_db = GeedarDB(conn_dict=db_config["conn_dict"], db_names=db_config["db_names"])
