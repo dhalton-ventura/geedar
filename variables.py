@@ -26,7 +26,7 @@ __status__ = "Beta"
 
 #%% Import
 
-from geedar_core.catalog_types import Variable
+from geedar_core.variable import Variable
 
 
 #%% Export

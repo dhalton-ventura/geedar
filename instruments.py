@@ -24,7 +24,7 @@ __status__ = "Beta"
 
 #%% Import
 
-from geedar_core.catalog_types import Instrument
+from geedar_core.instrument import Instrument
 
 
 #%% Export

@@ -10,13 +10,13 @@ import ee
 from datetime import datetime
 from func_timeout import func_timeout, FunctionTimedOut
 
-from .catalog_types import Reducer
+from .exceptions import _NoGroupRetryError
+from .reducer import Reducer
 from .utils import (
     _MAX_PROC_PIXELS,
     _MAX_SIM_IMAGES,
     _MAX_ATTEMPTS,
     _RETRY_WAIT_SECONDS,
-    _NoGroupRetryError,
     cast_numeric_list,
     is_path_valid,
     reduce_list,

@@ -4,14 +4,17 @@
 
 __version__ = "2.1"
 
-from .algorithms import CloudAlgorithm, LocalAlgorithm
 from .app import GeedarApp
-from .catalog_types import Instrument, Reducer, Variable
+from .cloud_algorithm import CloudAlgorithm
 from .database import GeedarDB
 from .demand import Demand
+from .instrument import Instrument
+from .local_algorithm import LocalAlgorithm
 from .options import UserOptions
 from .product import Product
+from .reducer import Reducer
 from .station import VirtualStation
+from .variable import Variable
 
 __all__ = [
     "Product",

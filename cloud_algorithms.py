@@ -7,7 +7,7 @@ They are used in GEEDaR as a parameter of Demand objects.*
 
 You may edit this module to include your own algorithms.
 
-* On Demand objects, see the class 'Demand' in the module 'geedar_classes'.
+* On Demand objects, see the class 'Demand' in 'geedar_core.demand'.
 
 """
 
@@ -25,7 +25,7 @@ __status__ = "Beta"
 
 import math
 import ee
-from geedar_core.algorithms import CloudAlgorithm
+from geedar_core.cloud_algorithm import CloudAlgorithm
 
 
 #%% Export

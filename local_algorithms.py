@@ -14,7 +14,7 @@ must use the local algorithm identified with number zero in the catalog below.
 If you edit this module, I recommend you keep local the algorithm #0 as the 
 one for "doing nothing".
 
-* On Demand objects, see the class 'Demand' in the module 'geedar_classes'.
+* On Demand objects, see the class 'Demand' in 'geedar_core.demand'.
 
 """
 
@@ -33,7 +33,7 @@ __status__ = "Beta"
 import math
 import pandas as pd
 import numpy as np
-from geedar_core.algorithms import LocalAlgorithm
+from geedar_core.local_algorithm import LocalAlgorithm
 
 
 #%% Export

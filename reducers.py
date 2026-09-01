@@ -10,7 +10,7 @@ Demand objects.*
 Each Reducer has an id code that is both an attribute and an identification 
 in the catalog below.
 
-* On Demand objects, see the class 'Demand' in the module 'geedar_classes'.
+* On Demand objects, see the class 'Demand' in 'geedar_core.demand'.
 
 """
 
@@ -27,7 +27,7 @@ __status__ = "Beta"
 #%% Import
 
 import ee
-from geedar_core.catalog_types import Reducer
+from geedar_core.reducer import Reducer
 #from stats import stat_catalog
 
 

@@ -9,7 +9,7 @@ etc. A Product object is a required parameter of Demand objects.*
 Each Product has an id code that is both an attribute and an identification 
 in the catalog below.
 
-* On Demand objects, see the class 'Demand' in the module 'geedar_classes'.
+* On Demand objects, see the class 'Demand' in 'geedar_core.demand'.
 
 """
 

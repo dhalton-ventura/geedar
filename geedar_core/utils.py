@@ -27,10 +27,6 @@ _MAX_SIM_IMAGES = 250
 _MAX_ATTEMPTS = 2
 _RETRY_WAIT_SECONDS = 300
 
-
-class _NoGroupRetryError(RuntimeError):
-    pass
-
 # Default value for the radius of the area of interest, in meters.
 _AOI_DEFAULT_RADIUS = 100
 
