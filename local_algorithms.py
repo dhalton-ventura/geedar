@@ -142,11 +142,11 @@ def sss_baixo_amazonas_red_nir(df, options):
     return out
 
 
-def sss_paraguai_red(df, options):
+def ss_paraguai_red(df, options):
     out = df.copy()
     red = pd.to_numeric(out["red"], errors="coerce")
-    out["SSS"] = 0.0562 * red.where(red > 0.0)
-    out.loc[~_apply_quality_filter(out), "SSS"] = np.nan
+    out["SS"] = 0.0562 * red.where(red > 0.0)
+    out.loc[~_apply_quality_filter(out), "SS"] = np.nan
     return out
 
 def old_hidrosat_chla(df, options):
@@ -378,13 +378,13 @@ _algo_list = [
      },
      {
         "algo_code": 23,
-        "name": "SSS Bacia do Paraguai - RED",
-        "description": "Regional SSS model for the Paraguay River basin. "
+        "name": "SS Bacia do Paraguai - RED",
+        "description": "Regional SS model for the Paraguay River basin. "
             + "Model: 0.0562*RED",
         "ref": "",
         "required_bands": ["red", "qual_flag"],
         "applicable_suffixes": ["median"],
-        "function": sss_paraguai_red,
+        "function": ss_paraguai_red,
         "options": None
      }
 ]
