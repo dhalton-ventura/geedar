@@ -10,6 +10,7 @@ import pickle
 import pandas
 import ee
 from datetime import datetime
+from sqlalchemy import text
 
 from .database import GeedarDB
 from .demand import Demand
@@ -1452,6 +1453,33 @@ class GeedarApp:
                     "description": [product_description]})
                 geedar_db.save_to_table("product", df)
                 any_change = True
+            else:
+                product_row = ind[0]
+                current_instrument_id = int(db_products.loc[product_row,
+                    "product.fkey_instrument"])
+                if current_instrument_id != instrument_id:
+                    product_table = db_names["product"]["_table_name"]
+                    product_schema = db_names["product"]["_schema"]
+                    if product_schema:
+                        product_table = product_schema + "." + product_table
+                    result = geedar_db._conn.execute(text(
+                        "UPDATE " + product_table + " SET "
+                        + db_names["product"]["fkey_instrument"]
+                        + " = :instrument_id WHERE "
+                        + db_names["product"]["primary_key"]
+                        + " = :product_code"), {
+                            "instrument_id": int(instrument_id),
+                            "product_code": int(product_code)
+                        })
+                    if result.rowcount != 1:
+                        geedar_db._conn.rollback()
+                        raise RuntimeError("Failed to update the instrument "
+                            + "associated with product "
+                            + str(product_code) + ".")
+                    geedar_db._conn.commit()
+                    db_products.loc[product_row,
+                        "product.fkey_instrument"] = instrument_id
+                    any_change = True
 
         # Variables.
         var_catalog = args["variable_catalog"]
