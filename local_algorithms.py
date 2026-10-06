@@ -222,7 +222,7 @@ _algo_list = [
      },
      {
         "algo_code": 1,
-        "name": "Old HidroSat chla",
+        "name": "Old HidroSat Chla",
         "description": "Estiamtes chlorophyll-a concentration (ug/L) in "
             + "Brazilian semiarid reservoirs through this model: "
             + "4.3957 + 0.213*(R - R^2/G) + 0.0004*(R - R^2/G)^2",
@@ -247,7 +247,7 @@ _algo_list = [
      },
      {
         "algo_code": 3,
-        "name": "SSS Madeira",
+        "name": "SSS Madeira 2013",
         "description": "Estimates the surface suspended solids concentration "
             + "in the Madeira River. Model: 1020*(NIR/red)^2.94",
         "ref": "Villar, R.E.; et al. A study of sediment transport in the "
@@ -324,9 +324,7 @@ _algo_list = [
      {
         "algo_code": 13,
         "name": "Rio Doce 2022",
-        "description": "Estimates suspended sediment in the Doce river. Model "
-            + "calibration was done with data covering a large range: 0-1000. "
-            + "Model: 6.44*exp(0.6798*IR/G + 0.001391*Rh2)",
+        "description": "Estimates suspended sediment in the Doce river. Model calibration was done with data covering a large range: 0-1000. Model: 6.44*exp(0.6798*IR/G + 0.001391*Rh''). Rh'' is the height of the reflectance in red over a baseline from blue to SWIR.",
         "ref": "MENDES et al., 2022 (Unpublished).",
         "required_bands": ["blue", "green", "red", "NIR", "wl2000"],
         "applicable_suffixes": ["median","mean"],
@@ -335,7 +333,7 @@ _algo_list = [
      },
      {
         "algo_code": 14,
-        "name": "Madeira 2023",
+        "name": "SSS Madeira 2023 - Provisional",
         "description": "Estimates suspended sediment along the Madeira river. "
             + "The algorithm adapts to the satellite product. Models were "
             + "calibrated for concentrations as high as 3500 mg/L which "
