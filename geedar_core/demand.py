@@ -1251,34 +1251,26 @@ class Demand:
         export_vars = self._export_vars
 
         def retrieve(image_collection):
-            def get_vars(image, result):
-                var_list = ee.List(export_vars)
-                return ee.Dictionary(result).set(ee.Image(image).get(
-                    "img_datetime"), ee.Dictionary.fromLists(var_list,
-                    var_list.map(lambda var_name: ee.Image(image).get(
-                    ee.String(var_name)))))
+            var_list = ee.List(export_vars)
 
-            def reduce_bands(image, result):
+            def extract_data(image, result):
+                image = ee.Image(image)
                 scale = image.select(ref_band).projection().nominalScale().min(
                     ee.Geometry(aoi).area().sqrt())
-                return ee.Dictionary(result).set(ee.Image(image).get(
-                    "img_datetime"), ee.Image(image).reduceRegion(
+                vars_sub = ee.Dictionary.fromLists(
+                    var_list,
+                    var_list.map(
+                        lambda var_name: image.get(ee.String(var_name))))
+                bands_sub = image.reduceRegion(
                     reducer = ee.Reducer(ee_reducer), geometry = aoi,
-                    scale = scale, bestEffort = True, tileScale = tile_scale))
+                    scale = scale, bestEffort = True, tileScale = tile_scale)
+                return ee.Dictionary(result).set(
+                    image.get("img_datetime"),
+                    bands_sub.combine(vars_sub))
 
-            # Combine the dictionaries of parameters and of band values.
-            def combine_dicts(key, sub_dict):
-                return ee.Dictionary(sub_dict).combine(
-                    ee.Dictionary(vars_dict).get(key))
-
-            # Combine variable and band data.
-            first = ee.Dictionary()
-            vars_dict = ee.Dictionary(
-                ee.ImageCollection(image_collection).iterate(get_vars, first))
-            bands_dict = ee.Dictionary(
-                ee.ImageCollection(image_collection).iterate(reduce_bands,
-                first))
-            combined_dict = bands_dict.map(combine_dicts)
+            combined_dict = ee.Dictionary(
+                ee.ImageCollection(image_collection).iterate(
+                    extract_data, ee.Dictionary()))
 
             return combined_dict.getInfo()
 
@@ -1299,8 +1291,7 @@ class Demand:
                 cur_date_list = date_list[
                     cur_date_index:(cur_date_index + cur_group_size)]
                 # Restrict the collection to the current group (dates).
-                image_collection = product.collection.filter(
-                    ee.Filter.inList("img_datetime", cur_date_list))
+                image_collection = product.filter_by_dates(cur_date_list)
                 # Apply the cloud algorithm.
                 image_collection = cloud_algo.apply(product, virtual_station,
                     image_collection, cloud_algo_options)
