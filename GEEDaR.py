@@ -91,7 +91,11 @@ else:
 try:
     ee.Initialize(project=project_id)
 except:
-    ee.Authenticate()
+    ee.Authenticate(
+        auth_mode='localhost',
+        scopes=['https://www.googleapis.com/auth/earthengine',
+            'https://www.googleapis.com/auth/cloud-platform'],
+        force=True)
     ee.Initialize(project=project_id)        
 
 from products import product_catalog
