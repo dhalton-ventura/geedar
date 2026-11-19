@@ -8,6 +8,7 @@ import copy
 import json
 import pickle
 import pandas
+import numpy as np
 import ee
 from datetime import datetime
 from sqlalchemy import text
@@ -1806,7 +1807,34 @@ class GeedarApp:
         if len(primer_df) == 0:
             return
 
-        result_df = primer_df.copy()
+        # Pre-allocate all required result columns at once to prevent DataFrame fragmentation.
+        required_cols = self._required_result_cols()
+        missing_cols = [c for c in required_cols if c not in primer_df.columns]
+        if missing_cols:
+            col_dtypes = {}
+            for demand_ind in [*demand_dict]:
+                cur_demand = demand_dict[demand_ind]["demand_obj"]
+                ts_df = cur_demand._time_series
+                if ts_df is not None:
+                    for col in ts_df.columns:
+                        if col not in cur_demand._reserved_columns:
+                            col_dtypes[col] = ts_df[col].dtype
+
+            empty_dict = {}
+            for col in missing_cols:
+                dtype = col_dtypes.get(col, np.float64)
+                if dtype == object:
+                    empty_dict[col] = pandas.Series(
+                        [None] * len(primer_df), index=primer_df.index,
+                        dtype=object)
+                else:
+                    empty_dict[col] = pandas.Series(
+                        np.nan, index=primer_df.index, dtype=dtype)
+            empty_df = pandas.DataFrame(empty_dict, index=primer_df.index)
+            result_df = pandas.concat([primer_df, empty_df], axis=1)
+        else:
+            result_df = primer_df.copy()
+
         stcode_series = result_df.iloc[:,id_col]
         date_series = result_df["img_date"]
         demand_series = result_df["demand_code"]
@@ -1838,7 +1866,7 @@ class GeedarApp:
                         if ts_copy[col].dtype == "object":
                             source_val = copy.deepcopy(
                                 ts_copy.at[source_row, col])
-                            if col not in list(result_df.columns):
+                            if col not in result_df.columns:
                                 result_df[col] = None
                         else:
                             source_val = ts_copy.at[source_row, col]
